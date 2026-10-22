@@ -13,7 +13,7 @@ moon update
 moon run cmd/main -- scan "D:\Photos" "E:\PhoneBackup" "D:\PhotoReview"
 ```
 
-在浏览器打开输出的 `review.html`。页面会列出每张待导入图片及参考图片，并汇总各类数量；“只选可新增”可一次勾选明确的新照片，“清空选择”会取消所有勾选。“疑似相似”和“同名冲突”需手动勾选。下载 `approved.json` 后执行：
+在浏览器打开输出的 `review.html`。页面会列出每张待导入图片及参考图片，并汇总各类数量；可以按文件名或路径搜索，也可按分类筛选。“只选可新增”可一次勾选明确的新照片，“清空选择”会取消所有勾选。“疑似相似”和“同名冲突”需手动勾选。下载 `approved.json` 后执行：
 
 ```powershell
 moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json"

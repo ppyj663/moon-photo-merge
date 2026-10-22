@@ -47,6 +47,7 @@ for (const kind of ['exact', 'similar', 'conflict', 'new', 'unreadable']) {
 }
 const summary = html.match(/<span class="summary" id="summary" data-exact="(\d+)" data-similar="(\d+)" data-conflict="(\d+)" data-new="(\d+)" data-unreadable="(\d+)"/);
 assert.ok(summary, 'report contains category counts');
+assert.ok(html.includes('id="search"'), 'report can search by filename or path');
 assert.ok(html.includes('id="select-new"'), 'report can select new files in one action');
 assert.ok(html.includes('id="clear-selection"'), 'report can clear selections in one action');
 for (const [index, kind] of ['exact', 'similar', 'conflict', 'new', 'unreadable'].entries()) {
