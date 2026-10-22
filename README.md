@@ -21,6 +21,8 @@ moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户�
 
 `scan` 要求三个文件夹彼此独立。`apply` 会重新扫描；若相册或备份内的 JPEG/PNG 内容、文件名、数量改变，旧清单就会被拒绝，需重新审核。仅清单中勾选的文件会复制到现有相册**根目录**，同名时使用 `-import-1` 等新文件名。复制后校验 SHA-256，且目标名已存在时停止，不会覆盖。
 
+命令帮助：`moon run cmd/main -- --help`。
+
 ## 判断规则
 
 | 分类 | 含义 | 默认选择 |

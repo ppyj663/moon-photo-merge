@@ -106,16 +106,26 @@ fn fail(message : String) -> Unit {
 }
 
 ///|
+fn print_usage() -> Unit {
+  println("用法：")
+  println(
+    "  moon run cmd/main -- scan <现有相册> <待导入备份> <报告文件夹>",
+  )
+  println(
+    "  moon run cmd/main -- apply <现有相册> <待导入备份> <approved.json>",
+  )
+  println("  moon run cmd/main -- --help")
+}
+
+///|
 fn main {
   let args = cli_args()
+  if args.length() == 1 && (args[0] == "--help" || args[0] == "-h") {
+    print_usage()
+    return
+  }
   if args.length() != 4 || (args[0] != "scan" && args[0] != "apply") {
-    println("用法：")
-    println(
-      "  moon run cmd/main -- scan <现有相册> <待导入备份> <报告文件夹>",
-    )
-    println(
-      "  moon run cmd/main -- apply <现有相册> <待导入备份> <approved.json>",
-    )
+    print_usage()
     set_exit_code(2)
     return
   }

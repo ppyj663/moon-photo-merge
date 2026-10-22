@@ -22,6 +22,10 @@ const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).d
 const run = (...args) => spawnSync(process.platform === 'win32' ? 'moon.exe' : 'moon', ['run', 'cmd/main', '--', ...args], {
   cwd: project, encoding: 'utf8',
 });
+const help = run('--help');
+assert.equal(help.status, 0, help.stderr + help.stdout);
+assert.match(help.stdout, /scan <现有相册>/);
+assert.match(help.stdout, /apply <现有相册>/);
 const nestedIncoming = path.join(library, 'nested-input');
 fs.mkdirSync(nestedIncoming);
 const overlapping = run('scan', library, nestedIncoming, path.join(temp, 'overlap-report'));
