@@ -67,8 +67,10 @@ extern "js" fn validate_paths(
   #|       cursor = parent;
   #|     }
   #|     const out = path.join(fs.realpathSync(cursor), ...pending);
-  #|     const norm = x => process.platform === 'win32' ? x.toLowerCase() : x;
-  #|     const contains = (a, b) => norm(b) === norm(a) || norm(b).startsWith(norm(a + path.sep));
+  #|     const contains = (a, b) => {
+  #|       const relative = path.relative(a, b);
+  #|       return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
+  #|     };
   #|     if (contains(old, fresh) || contains(fresh, old)) return '现有相册和待导入备份不能互相包含';
   #|     if (contains(old, out) || contains(fresh, out)) return '报告文件夹不能位于输入文件夹内';
   #|     if (contains(out, old) || contains(out, fresh)) return '输入文件夹不能位于报告文件夹内';

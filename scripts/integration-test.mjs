@@ -22,6 +22,10 @@ const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).d
 const run = (...args) => spawnSync(process.platform === 'win32' ? 'moon.exe' : 'moon', ['run', 'cmd/main', '--', ...args], {
   cwd: project, encoding: 'utf8',
 });
+const filesystemRoot = path.parse(process.cwd()).root;
+const rootOverlap = run('scan', filesystemRoot, temp, filesystemRoot);
+assert.equal(rootOverlap.status, 2, rootOverlap.stderr + rootOverlap.stdout);
+assert.match(rootOverlap.stdout, /现有相册和待导入备份不能互相包含/);
 const help = run('--help');
 assert.equal(help.status, 0, help.stderr + help.stdout);
 assert.match(help.stdout, /scan <现有相册>/);
