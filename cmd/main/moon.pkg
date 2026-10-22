@@ -1,0 +1,5 @@
+import {
+  "ppyj663/photo_merge" @lib,
+}
+
+pkgtype(kind: "executable")

@@ -1,0 +1,46 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ppyj663/photo_merge"
+
+// Values
+pub fn build_plan(Array[Photo], Array[Photo], similar_limit? : Int32) -> Array[ReviewRow]
+
+pub fn fingerprint(Bytes, String) -> String?
+
+pub fn hamming_distance(String, String) -> Int32
+
+// Errors
+
+// Types and methods
+pub(all) enum Kind {
+  Exact
+  Similar
+  Conflict
+  New
+  Unreadable
+} derive(Eq)
+pub fn Kind::code(Self) -> String
+pub fn Kind::equal(Self, Self) -> Bool
+pub fn Kind::label(Self) -> String
+pub fn Kind::not_equal(Self, Self) -> Bool
+
+pub(all) struct Photo {
+  path : String
+  name : String
+  digest : String
+  fingerprint : String?
+  size : Int32
+}
+
+pub(all) struct ReviewRow {
+  path : String
+  name : String
+  digest : String
+  kind : Kind
+  match_path : String?
+  destination : String?
+  size : Int32
+}
+
+// Type aliases
+
+// Traits
