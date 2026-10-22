@@ -21,8 +21,9 @@ jobs:
           echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
       - name: Install dependencies
         run: moon update
-      - name: Check and test
+      - name: Check, build and test
         run: |
           moon check --target js
+          moon build --target js
           moon test --target js
           node scripts/integration-test.mjs

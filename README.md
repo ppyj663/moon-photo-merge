@@ -35,7 +35,7 @@ moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户�
 
 ## 示例与测试
 
-`examples/fixtures` 包含五种待导入文件：完全重复、像素略变、同名不同内容、可新增 JPEG，以及损坏 JPEG。演示前复制它们到临时工作目录，避免修改仓库样例：
+`examples/fixtures` 是合成测试素材，不含真实相册照片；其中包含五种待导入文件：完全重复、像素略变、同名不同内容、可新增 JPEG，以及损坏 JPEG。演示前复制它们到临时工作目录，避免修改仓库样例：
 
 ```powershell
 ./scripts/demo.ps1
@@ -53,5 +53,7 @@ node scripts/integration-test.mjs
 ## 实现
 
 MoonBit 负责照片数据建模、图片解码后的视觉指纹、分类和导入决策。JPEG/PNG 解码使用 `gmlewis/image`，文件系统及 SHA-256 使用少量 Node.js 适配代码。执行阶段再次核对扫描摘要和来源文件哈希，通过同目录临时文件校验后创建目标硬链接，因此不会覆盖同名文件；若执行中途失败，已成功复制的文件会保留，重新扫描后可继续审核。
+
+直接依赖为 [gmlewis/image](https://github.com/gmlewis/moonbit-image) 和 [gmlewis/io](https://github.com/gmlewis/moonbit-io)，两者在 Mooncakes 标注为 Apache-2.0。本项目使用了 Codex 辅助编写代码、测试和文档；分类规则、限制与复现方式见上文及仓库测试。
 
 许可证：Apache-2.0。
