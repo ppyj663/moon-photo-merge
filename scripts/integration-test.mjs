@@ -74,6 +74,14 @@ for (const invalid of [
   assert.deepEqual(fs.readdirSync(library), ['original.png']);
 }
 fs.writeFileSync(approved, JSON.stringify({
+  scanId: id[1],
+  selected: ['incoming/new.jpg', 'incoming/../library/original.png'],
+}));
+const traversal = run('apply', library, incoming, approved);
+assert.equal(traversal.status, 2, traversal.stderr + traversal.stdout);
+assert.match(traversal.stdout, /审核清单路径不存在/);
+assert.deepEqual(fs.readdirSync(library), ['original.png']);
+fs.writeFileSync(approved, JSON.stringify({
   scanId: id[1], selected: ['incoming/new.jpg', 'incoming/duplicate.png'],
 }));
 const rejected = run('apply', library, incoming, approved);
