@@ -13,7 +13,7 @@ moon update
 moon run cmd/main -- scan "D:\Photos" "E:\PhoneBackup" "D:\PhotoReview"
 ```
 
-在浏览器打开输出的 `review.html`。页面会列出每张待导入图片及参考图片；“可新增”默认选中，“疑似相似”和“同名冲突”需手动勾选。下载 `approved.json` 后执行：
+在浏览器打开输出的 `review.html`。页面会列出每张待导入图片及参考图片，并汇总各类数量；“只选可新增”可一次勾选明确的新照片，“清空选择”会取消所有勾选。“疑似相似”和“同名冲突”需手动勾选。下载 `approved.json` 后执行：
 
 ```powershell
 moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json"
@@ -35,13 +35,13 @@ moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户�
 
 ## 示例与测试
 
-`examples/fixtures` 是合成测试素材，不含真实相册照片；其中包含五种待导入文件：完全重复、像素略变、同名不同内容、可新增 JPEG，以及损坏 JPEG。演示前复制它们到临时工作目录，避免修改仓库样例：
+`examples/fixtures` 是合成测试素材，不含真实相册照片；其中包含五种待导入文件：完全重复、像素略变、同名不同内容、可新增 JPEG，以及损坏 JPEG。演示前复制它们到临时工作目录，避免修改仓库样例。跨平台运行方式：
 
-```powershell
-./scripts/demo.ps1
+```sh
+node scripts/demo.mjs
 ```
 
-脚本会打印临时报告路径。打开报告，下载清单，然后按上面的 `apply` 命令尝试复制。运行自动化测试：
+脚本会打印临时报告路径。打开报告，下载清单，然后按上面的 `apply` 命令尝试复制。Windows 用户也可运行 `./scripts/demo.ps1`。运行自动化测试：
 
 ```powershell
 moon test --target js

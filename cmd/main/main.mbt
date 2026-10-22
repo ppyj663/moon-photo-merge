@@ -61,7 +61,19 @@ fn make_report(
   id : String,
 ) -> String {
   let mut table = ""
+  let mut exact = 0
+  let mut similar = 0
+  let mut conflict = 0
+  let mut new_count = 0
+  let mut unreadable = 0
   for row in rows {
+    match row.kind {
+      Exact => exact = exact + 1
+      Similar => similar = similar + 1
+      Conflict => conflict = conflict + 1
+      New => new_count = new_count + 1
+      Unreadable => unreadable = unreadable + 1
+    }
     let match_path = optional_text(row.match_path)
     table = table +
       html_row(
@@ -75,7 +87,16 @@ fn make_report(
         match_url(match_path, library, incoming),
       )
   }
-  html_page(id, table, rows.length())
+  html_page(
+    id,
+    table,
+    rows.length(),
+    exact,
+    similar,
+    conflict,
+    new_count,
+    unreadable,
+  )
 }
 
 ///|
@@ -123,6 +144,11 @@ fn main {
       "预检完成：" + rows.length().to_string() + " 张待导入图片",
     )
     println("报告：" + report_path(third))
+    return
+  }
+  let approval_error = approved_error(third)
+  if approval_error != "" {
+    fail(approval_error)
     return
   }
   if approved_scan_id(third) != id {
