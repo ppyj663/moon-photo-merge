@@ -6,7 +6,7 @@
 
 ## 使用
 
-需要 [MoonBit 工具链](https://www.moonbitlang.com/download/) 和 Node.js。已在 Windows 的 MoonBit `0.1.20261020`、Node.js 环境运行。
+需要 [MoonBit 工具链](https://www.moonbitlang.com/download/) 和 Node.js。已在 Windows 的 MoonBit `0.1.20261020`、Node.js 24 及 GitHub Actions 的 Linux 环境运行。
 
 ```powershell
 moon update
