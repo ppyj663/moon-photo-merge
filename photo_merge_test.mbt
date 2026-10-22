@@ -137,3 +137,34 @@ test "two different incoming files with the same basename get distinct targets" 
   assert_true(rows[1].kind == @photo_merge.Kind::Conflict)
   assert_eq(rows[1].destination, Some("photo-import-1.jpg"))
 }
+
+///|
+test "trailing-dot names avoid Windows-normalized target collisions" {
+  let existing : Array[@photo_merge.Photo] = [
+    {
+      path: "old/photo.",
+      name: "photo.",
+      digest: "old-photo",
+      fingerprint: Some("0".repeat(64)),
+      size: 10,
+    },
+    {
+      path: "old/photo-import-1",
+      name: "photo-import-1",
+      digest: "reserved",
+      fingerprint: Some("1".repeat(64)),
+      size: 10,
+    },
+  ]
+  let incoming : Array[@photo_merge.Photo] = [
+    {
+      path: "new/photo.",
+      name: "photo.",
+      digest: "new-photo",
+      fingerprint: Some("2".repeat(64)),
+      size: 10,
+    },
+  ]
+  let rows = @photo_merge.build_plan(existing, incoming)
+  assert_eq(rows[0].destination, Some("photo-import-2"))
+}

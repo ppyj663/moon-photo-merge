@@ -73,8 +73,9 @@ fn unique_name(name : String, reserved : Map[String, String]) -> String {
     return name
   }
   let (stem, ext) = match name.rev_split_once(".") {
-    Some((head, tail)) if head.length() > 0 =>
+    Some((head, tail)) if head.length() > 0 && tail.length() > 0 =>
       (head.to_owned(), "." + tail.to_owned())
+    Some((head, _)) if head.length() > 0 => (head.to_owned(), "")
     _ => (name, "")
   }
   for number = 1; number <= 100000; number = number + 1 {
