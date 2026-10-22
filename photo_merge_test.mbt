@@ -71,6 +71,43 @@ test "visually close files need review" {
   let rows = @photo_merge.build_plan(existing, incoming)
   assert_true(rows[0].kind == @photo_merge.Kind::Similar)
   assert_eq(rows[0].match_path, Some("old/a.png"))
+  assert_eq(rows[0].similarity_distance, Some(1))
+}
+
+///|
+test "similarity limit is inclusive and keeps its nearest distance" {
+  let existing : Array[@photo_merge.Photo] = [
+    {
+      path: "old/a.png",
+      name: "a.png",
+      digest: "one",
+      fingerprint: Some("0".repeat(64)),
+      size: 10,
+    },
+  ]
+  let incoming : Array[@photo_merge.Photo] = [
+    {
+      path: "new/b.png",
+      name: "b.png",
+      digest: "two",
+      fingerprint: Some("0".repeat(63) + "1"),
+      size: 20,
+    },
+  ]
+  let within_limit = @photo_merge.build_plan(
+    existing,
+    incoming,
+    similar_limit=1,
+  )
+  assert_true(within_limit[0].kind == @photo_merge.Kind::Similar)
+  assert_eq(within_limit[0].similarity_distance, Some(1))
+  let outside_limit = @photo_merge.build_plan(
+    existing,
+    incoming,
+    similar_limit=0,
+  )
+  assert_true(outside_limit[0].kind == @photo_merge.Kind::New)
+  assert_eq(outside_limit[0].similarity_distance, None)
 }
 
 ///|

@@ -37,6 +37,7 @@ pub(all) struct ReviewRow {
   digest : String
   kind : Kind
   match_path : String?
+  similarity_distance : Int32?
   destination : String?
   size : Int32
 }

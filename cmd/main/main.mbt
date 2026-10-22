@@ -22,8 +22,15 @@ fn scan_id(
   incoming : String,
   existing : Array[@lib.Photo],
   fresh : Array[@lib.Photo],
+  similar_limit : Int32,
 ) -> String {
-  let mut content = "photo-merge-v1\n" + library + "\n" + incoming + "\n"
+  let mut content = "photo-merge-v2\n" +
+    library +
+    "\n" +
+    incoming +
+    "\nsimilar-limit=" +
+    similar_limit.to_string() +
+    "\n"
   for photo in existing {
     content = content +
       photo.path +
@@ -54,11 +61,20 @@ fn optional_text(value : String?) -> String {
 }
 
 ///|
+fn optional_distance(value : Int32?) -> String {
+  match value {
+    Some(distance) => distance.to_string()
+    None => ""
+  }
+}
+
+///|
 fn make_report(
   library : String,
   incoming : String,
   rows : Array[@lib.ReviewRow],
   id : String,
+  similar_limit : Int32,
 ) -> String {
   let mut table = ""
   let mut exact = 0
@@ -81,6 +97,7 @@ fn make_report(
         row.kind.label(),
         row.kind.code(),
         match_path,
+        optional_distance(row.similarity_distance),
         optional_text(row.destination),
         row.size,
         image_url(incoming, incoming_relative(row.path)),
@@ -96,6 +113,7 @@ fn make_report(
     conflict,
     new_count,
     unreadable,
+    similar_limit,
   )
 }
 
@@ -109,12 +127,50 @@ fn fail(message : String) -> Unit {
 fn print_usage() -> Unit {
   println("用法：")
   println(
-    "  moon run cmd/main -- scan <现有相册> <待导入备份> <报告文件夹>",
+    "  moon run cmd/main -- scan <现有相册> <待导入备份> <报告文件夹> [--similarity-limit 0..176]",
   )
   println(
-    "  moon run cmd/main -- apply <现有相册> <待导入备份> <approved.json>",
+    "  moon run cmd/main -- apply <现有相册> <待导入备份> <approved.json> [--similarity-limit 0..176]",
   )
   println("  moon run cmd/main -- --help")
+}
+
+///|
+fn parse_similarity_limit(args : FixedArray[String]) -> (Int32, String) {
+  if args.length() == 4 {
+    return (5, "")
+  }
+  if args.length() != 6 || args[4] != "--similarity-limit" {
+    return (5, "可选参数格式为 --similarity-limit 0..176")
+  }
+  let raw = args[5]
+  if raw.length() == 0 {
+    return (5, "相似阈值必须是 0 到 176 的整数")
+  }
+  let mut parsed = 0
+  for index = 0; index < raw.length(); index = index + 1 {
+    let digit = match raw[index] {
+      '0' => 0
+      '1' => 1
+      '2' => 2
+      '3' => 3
+      '4' => 4
+      '5' => 5
+      '6' => 6
+      '7' => 7
+      '8' => 8
+      '9' => 9
+      _ => -1
+    }
+    if digit < 0 {
+      return (5, "相似阈值必须是 0 到 176 的整数")
+    }
+    parsed = parsed * 10 + digit
+    if parsed > 176 {
+      return (5, "相似阈值范围是 0 到 176")
+    }
+  }
+  (parsed, "")
 }
 
 ///|
@@ -124,9 +180,16 @@ fn main {
     print_usage()
     return
   }
-  if args.length() != 4 || (args[0] != "scan" && args[0] != "apply") {
+  let invalid_count = args.length() != 4 && args.length() != 6
+  let invalid_command = args[0] != "scan" && args[0] != "apply"
+  if invalid_count || invalid_command {
     print_usage()
     set_exit_code(2)
+    return
+  }
+  let (similar_limit, limit_error) = parse_similarity_limit(args)
+  if limit_error != "" {
+    fail(limit_error)
     return
   }
   let library = args[1]
@@ -142,10 +205,13 @@ fn main {
   let incoming = real_path(incoming)
   let existing = scan_folder(library, "library")
   let fresh = scan_folder(incoming, "incoming")
-  let rows = @lib.build_plan(existing, fresh)
-  let id = scan_id(library, incoming, existing, fresh)
+  let rows = @lib.build_plan(existing, fresh, similar_limit~)
+  let id = scan_id(library, incoming, existing, fresh, similar_limit)
   if args[0] == "scan" {
-    let error = write_report(third, make_report(library, incoming, rows, id))
+    let error = write_report(
+      third,
+      make_report(library, incoming, rows, id, similar_limit),
+    )
     if error != "" {
       fail(error)
       return

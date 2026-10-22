@@ -19,6 +19,19 @@ moon run cmd/main -- scan "D:\Photos" "E:\PhoneBackup" "D:\PhotoReview"
 moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json"
 ```
 
+### 常见使用场景
+
+1. **合并一次手机备份**：按默认阈值扫描，打开 HTML 报告，保留“可新增”的默认选择，下载审核清单后执行 `apply`。
+2. **处理同名不同内容**：报告会把文件标为“同名冲突”，给出带 `-import-1` 的建议文件名；查看两张预览后再决定是否勾选。
+3. **更敏感地查找近似照片**：提高指纹差异阈值，例如 `--similarity-limit 8`，报告会把更多近似候选交给人工复核；扫描与执行必须使用相同阈值。
+
+阈值是 176 位视觉指纹的最大差异位数，范围为 `0..176`，默认值为 `5`。距离越小，指纹越接近；该分值不是相似概率。调低阈值会减少疑似提示，调高会增加提示。阈值不会代替人工审核。
+
+```powershell
+moon run cmd/main -- scan "D:\Photos" "E:\PhoneBackup" "D:\PhotoReview" --similarity-limit 8
+moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json" --similarity-limit 8
+```
+
 `scan` 要求三个文件夹彼此独立。`apply` 会重新扫描；若相册或备份内的 JPEG/PNG 内容、文件名、数量改变，旧清单就会被拒绝，需重新审核。仅清单中勾选的文件会复制到现有相册**根目录**，同名时使用 `-import-1` 等新文件名。复制后校验 SHA-256，且目标名已存在时停止，不会覆盖。
 
 命令帮助：`moon run cmd/main -- --help`。

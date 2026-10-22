@@ -27,6 +27,7 @@ pub(all) struct ReviewRow {
   digest : String
   kind : Kind
   match_path : String?
+  similarity_distance : Int32?
   destination : String?
   size : Int32
 }
@@ -117,6 +118,7 @@ pub fn build_plan(
         digest: photo.digest,
         kind: Unreadable,
         match_path: None,
+        similarity_distance: None,
         destination: None,
         size: photo.size,
       })
@@ -130,6 +132,7 @@ pub fn build_plan(
           digest: photo.digest,
           kind: Exact,
           match_path: Some(first),
+          similarity_distance: None,
           destination: None,
           size: photo.size,
         })
@@ -180,6 +183,11 @@ pub fn build_plan(
       digest: photo.digest,
       kind,
       match_path,
+      similarity_distance: if kind == Similar {
+        Some(closest_distance)
+      } else {
+        None
+      },
       destination,
       size: photo.size,
     })
