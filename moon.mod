@@ -19,7 +19,7 @@ repository = "https://github.com/ppyj663/moon-photo-merge"
 
 license = "Apache-2.0"
 
-keywords = [ ]
+keywords = [ "photo", "backup", "image", "deduplication" ]
 
 preferred_target = "js"
 
