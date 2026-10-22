@@ -15,8 +15,10 @@ const report = path.join(temp, 'report');
 fs.cpSync(path.join(fixture, 'library'), library, { recursive: true });
 fs.cpSync(path.join(fixture, 'incoming'), incoming, { recursive: true });
 fs.mkdirSync(report);
-const escapedName = "相册 & O'Neil.png";
+const escapedName = "相册, O'Neil.png";
 fs.copyFileSync(path.join(incoming, 'similar.png'), path.join(incoming, escapedName));
+const formulaName = '=SUMMARY.png';
+fs.copyFileSync(path.join(incoming, 'similar.png'), path.join(incoming, formulaName));
 
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const run = (...args) => spawnSync(process.platform === 'win32' ? 'moon.exe' : 'moon', ['run', 'cmd/main', '--', ...args], {
@@ -47,7 +49,7 @@ const invalidLimit = run('scan', library, incoming, path.join(temp, 'invalid-lim
 assert.equal(invalidLimit.status, 2, invalidLimit.stderr + invalidLimit.stdout);
 assert.match(invalidLimit.stdout, /相似阈值范围是 0 到 176/);
 const html = fs.readFileSync(path.join(report, 'review.html'), 'utf8');
-assert.ok(html.includes("incoming/相册 &amp; O&#39;Neil.png"), 'report escapes user-controlled filenames');
+assert.ok(html.includes('incoming/相册, O&#39;Neil.png'), 'report escapes user-controlled filenames');
 const id = html.match(/const scanId="([a-f0-9]{64})"/);
 assert.ok(id, 'report contains a scan ID');
 for (const kind of ['exact', 'similar', 'conflict', 'new', 'unreadable']) {
@@ -60,10 +62,27 @@ assert.ok(html.includes('id="select-new"'), 'report can select new files in one 
 assert.ok(html.includes('id="clear-selection"'), 'report can clear selections in one action');
 assert.ok(html.includes('当前阈值为 5/176 位'), 'report documents the active threshold');
 assert.ok(html.includes('class="score"'), 'similar rows show their fingerprint distance');
+assert.ok(html.includes('class="meta"'), 'report shows decoded image dimensions');
+assert.ok(html.includes('相似候选组'), 'report explains connected visual candidate groups');
 for (const [index, kind] of ['exact', 'similar', 'conflict', 'new', 'unreadable'].entries()) {
   const rows = [...html.matchAll(new RegExp(`<tr data-kind="${kind}">`, 'g'))].length;
   assert.equal(Number(summary[index + 1]), rows, `${kind} summary matches report rows`);
 }
+const exportedRows = JSON.parse(fs.readFileSync(path.join(report, 'review.json'), 'utf8'));
+assert.equal(exportedRows.length, summary.slice(1).reduce((total, count) => total + Number(count), 0), 'JSON export includes every review row');
+const escapedRow = exportedRows.find(row => row.name === escapedName);
+assert.ok(escapedRow, 'JSON export preserves Unicode filenames');
+assert.equal(typeof escapedRow.imageInfo.width, 'number', 'decoded rows include image dimensions');
+const reviewCsv = fs.readFileSync(path.join(report, 'review.csv'), 'utf8');
+assert.match(reviewCsv, /"incoming\/相册, O'Neil\.png"/);
+assert.ok(reviewCsv.includes("\"'=SUMMARY.png\""), 'spreadsheet formula-like names are escaped as text');
+const inventory = JSON.parse(fs.readFileSync(path.join(report, 'inventory.json'), 'utf8'));
+assert.equal(inventory.total, exportedRows.length, 'inventory and review exports describe the same incoming scan');
+assert.ok(inventory.extensions.some(item => item.extension === '.png'));
+assert.ok(fs.readFileSync(path.join(report, 'extensions.csv'), 'utf8').includes('extension,count,readable,unreadable,bytes'));
+const groups = JSON.parse(fs.readFileSync(path.join(report, 'similar-groups.json'), 'utf8'));
+assert.ok(Array.isArray(groups), 'similarity groups export is valid JSON');
+assert.ok(fs.readFileSync(path.join(report, 'similar-groups.csv'), 'utf8').includes('group,path,member_count'));
 const originalHash = hash(path.join(library, 'original.png'));
 const approved = path.join(report, 'approved.json');
 fs.writeFileSync(approved, 'not json');
@@ -95,14 +114,14 @@ assert.equal(rejected.status, 2, rejected.stderr + rejected.stdout);
 assert.deepEqual(fs.readdirSync(library), ['original.png']);
 
 fs.writeFileSync(approved, JSON.stringify({
-  scanId: id[1], selected: ['incoming/new.jpg', 'incoming/original.png', 'incoming/similar.png'],
+  scanId: id[1], selected: ['incoming/new.jpg', 'incoming/original.png', `incoming/${formulaName}`],
 }));
 const applied = run('apply', library, incoming, approved);
 assert.equal(applied.status, 0, applied.stderr + applied.stdout);
 assert.equal(hash(path.join(library, 'original.png')), originalHash);
 assert.equal(hash(path.join(library, 'new.jpg')), hash(path.join(incoming, 'new.jpg')));
 assert.equal(hash(path.join(library, 'original-import-1.png')), hash(path.join(incoming, 'original.png')));
-assert.equal(hash(path.join(library, 'similar.png')), hash(path.join(incoming, 'similar.png')));
+assert.equal(hash(path.join(library, formulaName)), hash(path.join(incoming, formulaName)));
 const stale = run('apply', library, incoming, approved);
 assert.equal(stale.status, 2, stale.stderr + stale.stdout);
 
@@ -125,4 +144,4 @@ assert.equal(mismatchedLimit.status, 2, mismatchedLimit.stderr + mismatchedLimit
 assert.match(mismatchedLimit.stdout, /审核清单与当前相册或备份不一致/);
 const sameLimit = run('apply', highLibrary, incoming, highApproval, '--similarity-limit', '176');
 assert.equal(sameLimit.status, 0, sameLimit.stderr + sameLimit.stdout);
-console.log('Integration test passed: review thresholds, classifications, safe copy, stale approvals.');
+console.log('Integration test passed: review exports, image metadata, groups, thresholds, safe copy, stale approvals.');

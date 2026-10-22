@@ -4,12 +4,14 @@ fn scan_folder(root : String, prefix : String) -> Array[@lib.Photo] {
   for relative in image_files(root) {
     let bytes = read_photo(root, relative)
     let digest = sha256_bytes(bytes)
+    let analysis = @lib.analyze_image(bytes, file_ext(relative))
     let photo : @lib.Photo = {
       path: prefix + "/" + relative,
       name: file_name(relative),
       digest,
-      fingerprint: @lib.fingerprint(bytes, file_ext(relative)),
+      fingerprint: analysis.map(x => x.0),
       size: bytes.length(),
+      image_info: analysis.map(x => x.1),
     }
     photos.push(photo)
   }
@@ -69,28 +71,52 @@ fn optional_distance(value : Int32?) -> String {
 }
 
 ///|
+fn image_review_details(info : @lib.ImageInfo?) -> (String, String) {
+  match info {
+    Some(image) => {
+      let notes = @lib.image_review_notes(image)
+      let text = StringBuilder()
+      for index = 0; index < notes.length(); index = index + 1 {
+        if index > 0 {
+          text.write_string("；")
+        }
+        text.write_string(notes[index])
+      }
+      (@lib.image_info_label(image), text.to_string())
+    }
+    None => ("无法读取尺寸", "")
+  }
+}
+
+///|
+fn combine_photos(
+  existing : Array[@lib.Photo],
+  incoming : Array[@lib.Photo],
+) -> Array[@lib.Photo] {
+  let combined : Array[@lib.Photo] = []
+  for photo in existing {
+    combined.push(photo)
+  }
+  for photo in incoming {
+    combined.push(photo)
+  }
+  combined
+}
+
+///|
 fn make_report(
   library : String,
   incoming : String,
+  photos : Array[@lib.Photo],
+  groups : Array[@lib.SimilarityGroup],
   rows : Array[@lib.ReviewRow],
   id : String,
   similar_limit : Int32,
 ) -> String {
   let mut table = ""
-  let mut exact = 0
-  let mut similar = 0
-  let mut conflict = 0
-  let mut new_count = 0
-  let mut unreadable = 0
   for row in rows {
-    match row.kind {
-      Exact => exact = exact + 1
-      Similar => similar = similar + 1
-      Conflict => conflict = conflict + 1
-      New => new_count = new_count + 1
-      Unreadable => unreadable = unreadable + 1
-    }
     let match_path = optional_text(row.match_path)
+    let (dimensions, notes) = image_review_details(row.image_info)
     table = table +
       html_row(
         row.path,
@@ -100,20 +126,35 @@ fn make_report(
         optional_distance(row.similarity_distance),
         optional_text(row.destination),
         row.size,
+        dimensions,
+        notes,
         image_url(incoming, incoming_relative(row.path)),
         match_url(match_path, library, incoming),
       )
   }
+  let summary = @lib.plan_summary(rows)
+  let inventory = @lib.inventory_summary(photos)
+  let group_summary = @lib.similarity_groups_summary(groups)
   html_page(
     id,
     table,
-    rows.length(),
-    exact,
-    similar,
-    conflict,
-    new_count,
-    unreadable,
+    summary.total,
+    summary.exact,
+    summary.similar,
+    summary.conflict,
+    summary.new_count,
+    summary.unreadable,
     similar_limit,
+    @lib.format_bytes(inventory.bytes),
+    @lib.format_bytes(summary.copyable_bytes),
+    @lib.format_bytes(summary.review_bytes),
+    inventory.landscape,
+    inventory.portrait,
+    inventory.square,
+    inventory.duplicate_file_groups,
+    group_summary.groups,
+    group_summary.pairs,
+    group_summary.largest_group,
   )
 }
 
@@ -208,9 +249,21 @@ fn main {
   let rows = @lib.build_plan(existing, fresh, similar_limit~)
   let id = scan_id(library, incoming, existing, fresh, similar_limit)
   if args[0] == "scan" {
+    let all_photos = combine_photos(existing, fresh)
+    let groups = @lib.similarity_groups(all_photos, similar_limit)
     let error = write_report(
       third,
-      make_report(library, incoming, rows, id, similar_limit),
+      make_report(library, incoming, fresh, groups, rows, id, similar_limit),
+      @lib.review_rows_csv(rows),
+      @lib.review_rows_json(rows),
+      @lib.inventory_json(
+        @lib.inventory_summary(fresh),
+        @lib.extension_summary(fresh),
+        @lib.size_distribution(fresh),
+      ),
+      @lib.extension_summary_csv(@lib.extension_summary(fresh)),
+      @lib.similarity_groups_json(groups),
+      @lib.similarity_groups_csv(groups),
     )
     if error != "" {
       fail(error)
@@ -220,6 +273,9 @@ fn main {
       "预检完成：" + rows.length().to_string() + " 张待导入图片",
     )
     println("报告：" + report_path(third))
+    println(
+      "数据：review.csv、review.json、inventory.json、extensions.csv、similar-groups.json、similar-groups.csv",
+    )
     return
   }
   let approval_error = approved_error(third)

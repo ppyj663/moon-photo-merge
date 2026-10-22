@@ -1,7 +1,7 @@
 ///|
 /// Difference hash, average luminance and coarse mean colors.
 /// A close hash is only a review hint and never authorizes deletion.
-pub fn fingerprint(data : Bytes, extension : String) -> String? {
+pub fn analyze_image(data : Bytes, extension : String) -> (String, ImageInfo)? {
   let reader = @io.Buffer::from_bytes(data)
   let (image, error) = if extension.to_lower() == ".png" {
     @png.decode(reader)
@@ -60,5 +60,26 @@ pub fn fingerprint(data : Bytes, extension : String) -> String? {
       )
     }
   }
-  Some(bits.to_string())
+  Some(
+    (
+      bits.to_string(),
+      {
+        width,
+        height,
+        luminance: (gray_sum / 64U).reinterpret_as_int(),
+        red: (red_sum / 64U).reinterpret_as_int(),
+        green: (green_sum / 64U).reinterpret_as_int(),
+        blue: (blue_sum / 64U).reinterpret_as_int(),
+      },
+    ),
+  )
+}
+
+///|
+/// Build the 176-bit image signature when the input is a supported decodable image.
+pub fn fingerprint(data : Bytes, extension : String) -> String? {
+  match analyze_image(data, extension) {
+    Some((signature, _)) => Some(signature)
+    None => None
+  }
 }

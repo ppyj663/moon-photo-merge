@@ -2,15 +2,111 @@
 package "ppyj663/photo_merge"
 
 // Values
+pub fn analyze_image(Bytes, String) -> (String, ImageInfo)?
+
 pub fn build_plan(Array[Photo], Array[Photo], similar_limit? : Int32) -> Array[ReviewRow]
+
+pub fn csv_field(String) -> String
+
+pub fn default_review_query() -> ReviewQuery
+
+pub fn duplicate_digest_groups(Array[Photo]) -> Array[DigestGroup]
+
+pub fn extension_summary(Array[Photo]) -> Array[ExtensionStats]
+
+pub fn extension_summary_csv(Array[ExtensionStats]) -> String
+
+pub fn find_similarity_group(Array[SimilarityGroup], String) -> SimilarityGroup?
 
 pub fn fingerprint(Bytes, String) -> String?
 
+pub fn format_bytes(Int64) -> String
+
 pub fn hamming_distance(String, String) -> Int32
+
+pub fn image_info_label(ImageInfo) -> String
+
+pub fn image_review_notes(ImageInfo) -> Array[String]
+
+pub fn inventory_json(InventorySummary, Array[ExtensionStats], Array[SizeBandStats]) -> String
+
+pub fn inventory_summary(Array[Photo]) -> InventorySummary
+
+pub fn json_string(String) -> String
+
+pub fn new_similarity_index(Int32) -> SimilarityIndex
+
+pub fn normalized_extension(String) -> String
+
+pub fn plan_summary(Array[ReviewRow]) -> PlanSummary
+
+pub fn query_review_rows(Array[ReviewRow], ReviewQuery) -> ReviewPage
+
+pub fn review_page_number(Int32, Int32) -> Int32
+
+pub fn review_page_start(Int32, Int32) -> Int32
+
+pub fn review_rows_csv(Array[ReviewRow]) -> String
+
+pub fn review_rows_json(Array[ReviewRow]) -> String
+
+pub fn similarity_groups(Array[Photo], Int32) -> Array[SimilarityGroup]
+
+pub fn similarity_groups_csv(Array[SimilarityGroup]) -> String
+
+pub fn similarity_groups_json(Array[SimilarityGroup]) -> String
+
+pub fn similarity_groups_summary(Array[SimilarityGroup]) -> SimilarityGroupsSummary
+
+pub fn similarity_pairs_csv(Array[(String, String, Int32)]) -> String
+
+pub fn size_band(Int32) -> SizeBand
+
+pub fn size_distribution(Array[Photo]) -> Array[SizeBandStats]
 
 // Errors
 
 // Types and methods
+pub(all) struct DigestGroup {
+  digest : String
+  paths : Array[String]
+  bytes : Int64
+}
+
+pub(all) struct ExtensionStats {
+  extension : String
+  count : Int32
+  readable : Int32
+  unreadable : Int32
+  bytes : Int64
+}
+
+pub(all) struct ImageInfo {
+  width : Int32
+  height : Int32
+  luminance : Int32
+  red : Int32
+  green : Int32
+  blue : Int32
+}
+
+pub(all) struct InventorySummary {
+  total : Int32
+  readable : Int32
+  unreadable : Int32
+  bytes : Int64
+  minimum_size : Int32
+  maximum_size : Int32
+  average_size : Int64
+  landscape : Int32
+  portrait : Int32
+  square : Int32
+  unknown_dimensions : Int32
+  pixels : Int64
+  duplicate_file_groups : Int32
+  duplicate_files : Int32
+}
+
 pub(all) enum Kind {
   Exact
   Similar
@@ -29,6 +125,42 @@ pub(all) struct Photo {
   digest : String
   fingerprint : String?
   size : Int32
+  image_info : ImageInfo?
+}
+
+pub(all) struct PlanSummary {
+  total : Int32
+  exact : Int32
+  similar : Int32
+  conflict : Int32
+  new_count : Int32
+  unreadable : Int32
+  copyable : Int32
+  needs_review : Int32
+  selected_by_default : Int32
+  total_bytes : Int64
+  copyable_bytes : Int64
+  review_bytes : Int64
+}
+
+pub(all) struct ReviewPage {
+  rows : Array[ReviewRow]
+  total_matches : Int32
+  offset : Int32
+  page_size : Int32
+  page_count : Int32
+  has_previous : Bool
+  has_next : Bool
+}
+
+pub(all) struct ReviewQuery {
+  text : String
+  kind : Kind?
+  minimum_size : Int32?
+  maximum_size : Int32?
+  sort : ReviewSort
+  offset : Int32
+  page_size : Int32
 }
 
 pub(all) struct ReviewRow {
@@ -40,6 +172,68 @@ pub(all) struct ReviewRow {
   similarity_distance : Int32?
   destination : String?
   size : Int32
+  image_info : ImageInfo?
+}
+
+pub(all) enum ReviewSort {
+  PathAscending
+  NameAscending
+  SizeDescending
+  SimilarityAscending
+  CategoryThenPath
+} derive(Eq)
+pub fn ReviewSort::equal(Self, Self) -> Bool
+pub fn ReviewSort::not_equal(Self, Self) -> Bool
+
+pub(all) struct SimilarityGroup {
+  paths : Array[String]
+  pair_count : Int32
+  minimum_distance : Int32
+  maximum_distance : Int32
+}
+
+pub(all) struct SimilarityGroupsSummary {
+  groups : Int32
+  members : Int32
+  pairs : Int32
+  largest_group : Int32
+}
+
+pub(all) struct SimilarityHit {
+  path : String
+  name : String
+  digest : String
+  distance : Int32
+}
+
+pub struct SimilarityIndex {
+  max_distance : Int32
+  entries : Array[Photo]
+  buckets64 : Array[Map[String, Array[Int32]]]
+  buckets176 : Array[Map[String, Array[Int32]]]
+}
+pub fn SimilarityIndex::add(Self, Photo) -> Unit
+pub fn SimilarityIndex::all_pairs(Self, Int32) -> Array[(String, String, Int32)]
+pub fn SimilarityIndex::capacity(Self) -> Int32
+pub fn SimilarityIndex::count(Self) -> Int32
+pub fn SimilarityIndex::nearest(Self, String, Int32) -> SimilarityHit?
+pub fn SimilarityIndex::search(Self, String, Int32) -> Array[SimilarityHit]
+
+pub(all) enum SizeBand {
+  Under256KiB
+  From256KiBTo1MiB
+  From1MiBTo8MiB
+  From8MiBTo32MiB
+  AtLeast32MiB
+} derive(Eq)
+pub fn SizeBand::equal(Self, Self) -> Bool
+pub fn SizeBand::label(Self) -> String
+pub fn SizeBand::not_equal(Self, Self) -> Bool
+
+pub(all) struct SizeBandStats {
+  band : SizeBand
+  count : Int32
+  bytes : Int64
 }
 
 // Type aliases

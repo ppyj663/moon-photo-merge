@@ -1,4 +1,15 @@
 ///|
+/// Basic decoded-image facts used for inventory and human review.
+pub(all) struct ImageInfo {
+  width : Int32
+  height : Int32
+  luminance : Int32
+  red : Int32
+  green : Int32
+  blue : Int32
+}
+
+///|
 /// Facts about one regular JPEG/PNG file. Missing fingerprint means decoding failed.
 pub(all) struct Photo {
   path : String
@@ -6,6 +17,7 @@ pub(all) struct Photo {
   digest : String
   fingerprint : String?
   size : Int32
+  image_info : ImageInfo?
 }
 
 ///|
@@ -30,6 +42,7 @@ pub(all) struct ReviewRow {
   similarity_distance : Int32?
   destination : String?
   size : Int32
+  image_info : ImageInfo?
 }
 
 ///|
@@ -95,9 +108,10 @@ pub fn build_plan(
   incoming : Array[Photo],
   similar_limit~ : Int32 = 5,
 ) -> Array[ReviewRow] {
+  let effective_limit = similar_limit.max(0).min(176)
   let digests : Map[String, String] = Map([])
   let names : Map[String, String] = Map([])
-  let candidates : Array[Photo] = []
+  let index = new_similarity_index(effective_limit)
   for photo in existing {
     if names.get(photo.name.to_lower()) is None {
       names.set(photo.name.to_lower(), photo.path)
@@ -106,7 +120,7 @@ pub fn build_plan(
       if digests.get(photo.digest) is None {
         digests.set(photo.digest, photo.path)
       }
-      candidates.push(photo)
+      index.add(photo)
     }
   }
   let rows : Array[ReviewRow] = []
@@ -121,6 +135,7 @@ pub fn build_plan(
         similarity_distance: None,
         destination: None,
         size: photo.size,
+        image_info: photo.image_info,
       })
       continue
     }
@@ -135,35 +150,30 @@ pub fn build_plan(
           similarity_distance: None,
           destination: None,
           size: photo.size,
+          image_info: photo.image_info,
         })
         continue
       }
       None => ()
     }
     let conflicting = names.get(photo.name.to_lower())
-    let mut closest : String? = None
-    let mut closest_distance = 177
-    match photo.fingerprint {
-      Some(fingerprint) =>
-        for candidate in candidates {
-          match candidate.fingerprint {
-            Some(other) => {
-              let distance = hamming_distance(fingerprint, other)
-              if distance < closest_distance {
-                closest_distance = distance
-                closest = Some(candidate.path)
-              }
-            }
-            None => ()
-          }
-        }
-      None => ()
+    let best = match photo.fingerprint {
+      Some(fingerprint) => index.nearest(fingerprint, effective_limit)
+      None => None
+    }
+    let closest = match best {
+      Some(hit) => Some(hit.path)
+      None => None
+    }
+    let closest_distance = match best {
+      Some(hit) => hit.distance
+      None => 177
     }
     let kind = if photo.fingerprint is None {
       Unreadable
     } else if conflicting is Some(_) {
       Conflict
-    } else if closest_distance <= similar_limit {
+    } else if closest_distance <= effective_limit {
       Similar
     } else {
       New
@@ -190,10 +200,11 @@ pub fn build_plan(
       },
       destination,
       size: photo.size,
+      image_info: photo.image_info,
     })
     if photo.fingerprint is Some(_) {
       digests.set(photo.digest, photo.path)
-      candidates.push(photo)
+      index.add(photo)
       match destination {
         Some(target) => names.set(target.to_lower(), photo.path)
         None => ()

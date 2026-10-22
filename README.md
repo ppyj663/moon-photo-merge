@@ -19,6 +19,8 @@ moon run cmd/main -- scan "D:\Photos" "E:\PhoneBackup" "D:\PhotoReview"
 moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json"
 ```
 
+每次扫描还会在报告文件夹输出 `review.csv`、`review.json`、`inventory.json`、`extensions.csv`、`similar-groups.json` 和 `similar-groups.csv`。这些文件用于查看或二次分析；只有网页下载的 `approved.json` 是 `apply` 接受的审核清单。`inventory.json` 汇总容量、方向、像素、文件扩展名和大小区间；CSV 字段会转义分隔符、引号和换行，并给公式样式的文本字段添加单引号以便在电子表格中按文本打开。需要原始字段值时使用 JSON 导出。
+
 ### 常见使用场景
 
 1. **合并一次手机备份**：按默认阈值扫描，打开 HTML 报告，保留“可新增”的默认选择，下载审核清单后执行 `apply`。
@@ -26,6 +28,8 @@ moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户�
 3. **更敏感地查找近似照片**：提高指纹差异阈值，例如 `--similarity-limit 8`，报告会把更多近似候选交给人工复核；扫描与执行必须使用相同阈值。
 
 阈值是 176 位视觉指纹的最大差异位数，范围为 `0..176`，默认值为 `5`。距离越小，指纹越接近；该分值不是相似概率。调低阈值会减少疑似提示，调高会增加提示。阈值不会代替人工审核。
+
+报告会显示图片尺寸、估算像素数、平均亮度和平均颜色的简单观察提示。工具还会按阈值把现有相册和备份中有直接匹配边的照片整理成“相似候选组”；组按直接匹配关系的连通性构成，因此同一组里的任意两张照片不一定彼此直接相似。候选组只用于缩小人工核对范围，不会自动排除或删除照片。
 
 ```powershell
 moon run cmd/main -- scan "D:\Photos" "E:\PhoneBackup" "D:\PhotoReview" --similarity-limit 8
@@ -46,7 +50,7 @@ moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户�
 | 可新增 | 未命中上述情况 | 选择 |
 | 图片无法解码 | 扩展名符合，但 JPEG/PNG 解码失败 | 不可选择 |
 
-视觉指纹是提示，不保证识别所有重编码、裁剪或旋转后的照片，也可能误报。JPEG 的 EXIF 朝向不参与归一化。现有相册和备份的目录结构不会在目标中保留；目标文件名会被展开到相册根目录。首版不处理 HEIC、RAW、视频或云端照片。
+视觉指纹是提示，不保证识别所有重编码、裁剪或旋转后的照片，也可能误报。JPEG 的 EXIF 朝向不参与归一化。亮度、颜色和分辨率提示是对采样图像的粗略统计，不等于图像质量判断。现有相册和备份的目录结构不会在目标中保留；目标文件名会被展开到相册根目录。首版不处理 HEIC、RAW、视频或云端照片。
 
 ## 示例与测试
 
@@ -63,7 +67,7 @@ moon test --target js
 node scripts/integration-test.mjs
 ```
 
-核心分类、命名冲突、损坏图片及重复导入的规则见测试；文件复制流程可用演示数据复核。
+核心分类、命名冲突、分段索引的候选召回、连通分组、统计边界、筛选分页、CSV/JSON 转义、损坏图片及重复导入的规则见测试；文件复制和报告导出流程可用演示数据复核。
 
 ## 实现
 

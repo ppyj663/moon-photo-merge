@@ -128,13 +128,28 @@ extern "js" fn image_url(root : String, relative : String) -> String =
   #| (root, relative) => require('node:url').pathToFileURL(require('node:path').join(root, relative)).href
 
 ///|
-extern "js" fn write_report(folder : String, html : String) -> String =
-  #| (folder, html) => {
+extern "js" fn write_report(
+  folder : String,
+  html : String,
+  csv : String,
+  rows_json : String,
+  inventory_json : String,
+  extensions_csv : String,
+  similarity_json : String,
+  similarity_csv : String,
+) -> String =
+  #| (folder, html, csv, rowsJson, inventoryJson, extensionsCsv, similarityJson, similarityCsv) => {
   #|   try {
   #|     const fs = require('node:fs');
   #|     const path = require('node:path');
   #|     fs.mkdirSync(folder, {recursive: true});
   #|     fs.writeFileSync(path.join(folder, 'review.html'), html, 'utf8');
+  #|     fs.writeFileSync(path.join(folder, 'review.csv'), csv, 'utf8');
+  #|     fs.writeFileSync(path.join(folder, 'review.json'), rowsJson, 'utf8');
+  #|     fs.writeFileSync(path.join(folder, 'inventory.json'), inventoryJson, 'utf8');
+  #|     fs.writeFileSync(path.join(folder, 'extensions.csv'), extensionsCsv, 'utf8');
+  #|     fs.writeFileSync(path.join(folder, 'similar-groups.json'), similarityJson, 'utf8');
+  #|     fs.writeFileSync(path.join(folder, 'similar-groups.csv'), similarityCsv, 'utf8');
   #|     return '';
   #|   } catch (error) { return String(error.message); }
   #| }
@@ -148,16 +163,19 @@ extern "js" fn html_row(
   distance : String,
   destination : String,
   size : Int32,
+  dimensions : String,
+  notes : String,
   source_url : String,
   candidate_url : String,
 ) -> String =
-  #| (path, label, code, matchPath, distance, destination, size, sourceUrl, candidateUrl) => {
+  #| (path, label, code, matchPath, distance, destination, size, dimensions, notes, sourceUrl, candidateUrl) => {
   #|   const esc = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   #|   const preview = url => url ? `<img loading="lazy" src="${esc(url)}" alt="图片预览">` : '';
   #|   const selectable = code === 'new' || code === 'similar' || code === 'conflict';
   #|   const tick = selectable ? `<input type="checkbox" class="pick" data-path="${esc(path)}" ${code === 'new' ? 'checked' : ''} aria-label="导入 ${esc(path)}">` : '';
   #|   const score = distance === '' ? '' : `<div class="score">差异 ${esc(distance)} / 176 位</div>`;
-  #|   return `<tr data-kind="${esc(code)}"><td>${tick}</td><td>${preview(sourceUrl)}<div class="path">${esc(path)}</div></td><td><strong>${esc(label)}</strong></td><td>${preview(candidateUrl)}<div class="path">${esc(matchPath)}</div></td><td>${score}</td><td>${esc(destination)}</td><td>${esc((size / 1024).toFixed(1))} KB</td></tr>`;
+  #|   const details = `<div class="meta">${esc(dimensions)}</div><div class="path">${esc(notes)}</div>`;
+  #|   return `<tr data-kind="${esc(code)}"><td>${tick}</td><td>${preview(sourceUrl)}<div class="path">${esc(path)}</div></td><td><strong>${esc(label)}</strong></td><td>${preview(candidateUrl)}<div class="path">${esc(matchPath)}</div></td><td>${score}</td><td>${esc(destination)}</td><td>${esc((size / 1024).toFixed(1))} KB</td><td>${details}</td></tr>`;
   #| }
 
 ///|
@@ -171,11 +189,21 @@ extern "js" fn html_page(
   new_count : Int32,
   unreadable : Int32,
   similar_limit : Int32,
+  total_bytes : String,
+  copyable_bytes : String,
+  review_bytes : String,
+  landscape : Int32,
+  portrait : Int32,
+  square : Int32,
+  duplicate_groups : Int32,
+  candidate_groups : Int32,
+  candidate_pairs : Int32,
+  largest_group : Int32,
 ) -> String =
-  #| (scanId, rows, total, exact, similar, conflict, newCount, unreadable, similarLimit) => {
+  #| (scanId, rows, total, exact, similar, conflict, newCount, unreadable, similarLimit, totalBytes, copyableBytes, reviewBytes, landscape, portrait, square, duplicateGroups, candidateGroups, candidatePairs, largestGroup) => {
   #|   const id = JSON.stringify(scanId);
   #|   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>照片备份合并预检</title><style>
-  #|   :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#172136;background:#f3f5f9}body{margin:0}header{background:#15233d;color:white;padding:28px max(24px,5vw)}h1{font-size:26px;margin:0 0 8px}header p{margin:0;color:#ced8e8}main{max-width:1300px;margin:24px auto;padding:0 18px}.toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:white;border:1px solid #dbe2ec;border-radius:12px;padding:16px;margin-bottom:16px}button{border:0;border-radius:8px;background:#2457c5;color:white;padding:11px 16px;font-size:15px;cursor:pointer}button:hover{background:#173d94}button.secondary{background:#52627a}button.secondary:hover{background:#39485e}select{padding:9px;border:1px solid #bdc8d8;border-radius:7px}small{color:#57657c}.table-wrap{overflow:auto;background:white;border:1px solid #dbe2ec;border-radius:12px}table{width:100%;border-collapse:collapse;min-width:1050px}th,td{padding:12px;text-align:left;border-bottom:1px solid #e7ebf1;vertical-align:top}th{background:#f8faff;position:sticky;top:0}td img{width:96px;height:72px;object-fit:contain;background:#eef1f5;border-radius:5px}.path{max-width:270px;overflow-wrap:anywhere;font-size:12px;color:#566278;margin-top:5px}.score{font-size:12px;color:#52627a;margin-top:5px}tr[data-kind="exact"]{background:#f6f8fa}tr[data-kind="unreadable"]{background:#fff6f3}.note{line-height:1.6;color:#45536b;margin:14px 0 22px}.count{font-weight:700}.summary{flex-basis:100%;font-size:13px;color:#45536b}input[type=search]{padding:9px;border:1px solid #bdc8d8;border-radius:7px;min-width:180px}</style></head><body><header><h1>照片备份合并预检</h1><p>先看差异，再决定复制哪些照片。原文件不会被删除或覆盖。</p></header><main><div class="toolbar"><span class="count">待导入图片 ${total} 张</span><span class="summary" id="summary" data-exact="${exact}" data-similar="${similar}" data-conflict="${conflict}" data-new="${newCount}" data-unreadable="${unreadable}">完全重复 ${exact} · 疑似相似 ${similar} · 同名冲突 ${conflict} · 可新增 ${newCount} · 无法解码 ${unreadable}</span><label>搜索 <input id="search" type="search" placeholder="文件名或路径"></label><label>筛选 <select id="filter"><option value="all">全部</option><option value="new">可新增</option><option value="similar">疑似相似</option><option value="conflict">同名冲突</option><option value="exact">完全重复</option><option value="unreadable">无法解码</option></select></label><button id="select-new">只选可新增</button><button id="clear-selection" class="secondary">清空选择</button><button id="download">下载审核清单</button><small id="selected"></small></div><p class="note">“可新增”默认勾选；疑似相似与同名冲突需要手动勾选。当前阈值为 ${similarLimit}/176 位；距离小于或等于阈值会标为“疑似相似”，这个指纹分值只是人工复核提示，不代表相似概率。完全重复和无法解码的文件不能选。下载清单后，在命令行执行 apply，且必须使用相同的阈值。预检不会改动现有相册。</p><div class="table-wrap"><table><thead><tr><th>选择</th><th>待导入照片</th><th>判断</th><th>参考照片</th><th>指纹差异</th><th>建议目标文件名</th><th>大小</th></tr></thead><tbody>${rows}</tbody></table></div></main><script>
+  #|   :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#172136;background:#f3f5f9}body{margin:0}header{background:#15233d;color:white;padding:28px max(24px,5vw)}h1{font-size:26px;margin:0 0 8px}header p{margin:0;color:#ced8e8}main{max-width:1400px;margin:24px auto;padding:0 18px}.toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:white;border:1px solid #dbe2ec;border-radius:12px;padding:16px;margin-bottom:16px}button{border:0;border-radius:8px;background:#2457c5;color:white;padding:11px 16px;font-size:15px;cursor:pointer}button:hover{background:#173d94}button.secondary{background:#52627a}button.secondary:hover{background:#39485e}select{padding:9px;border:1px solid #bdc8d8;border-radius:7px}small{color:#57657c}.table-wrap{overflow:auto;background:white;border:1px solid #dbe2ec;border-radius:12px}table{width:100%;border-collapse:collapse;min-width:1200px}th,td{padding:12px;text-align:left;border-bottom:1px solid #e7ebf1;vertical-align:top}th{background:#f8faff;position:sticky;top:0}td img{width:96px;height:72px;object-fit:contain;background:#eef1f5;border-radius:5px}.path{max-width:270px;overflow-wrap:anywhere;font-size:12px;color:#566278;margin-top:5px}.meta{font-size:13px;font-weight:600}.score{font-size:12px;color:#52627a;margin-top:5px}tr[data-kind="exact"]{background:#f6f8fa}tr[data-kind="unreadable"]{background:#fff6f3}.note{line-height:1.6;color:#45536b;margin:14px 0 22px}.count{font-weight:700}.summary{flex-basis:100%;font-size:13px;color:#45536b}.inventory{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.inventory span{background:#fff;border:1px solid #dbe2ec;border-radius:8px;padding:10px 12px;font-size:13px}input[type=search]{padding:9px;border:1px solid #bdc8d8;border-radius:7px;min-width:180px}</style></head><body><header><h1>照片备份合并预检</h1><p>先看差异，再决定复制哪些照片。原文件不会被删除或覆盖。</p></header><main><div class="toolbar"><span class="count">待导入图片 ${total} 张</span><span class="summary" id="summary" data-exact="${exact}" data-similar="${similar}" data-conflict="${conflict}" data-new="${newCount}" data-unreadable="${unreadable}">完全重复 ${exact} · 疑似相似 ${similar} · 同名冲突 ${conflict} · 可新增 ${newCount} · 无法解码 ${unreadable}</span><label>搜索 <input id="search" type="search" placeholder="文件名或路径"></label><label>筛选 <select id="filter"><option value="all">全部</option><option value="new">可新增</option><option value="similar">疑似相似</option><option value="conflict">同名冲突</option><option value="exact">完全重复</option><option value="unreadable">无法解码</option></select></label><button id="select-new">只选可新增</button><button id="clear-selection" class="secondary">清空选择</button><button id="download">下载审核清单</button><small id="selected"></small></div><div class="inventory"><span>扫描文件容量 ${totalBytes}</span><span>可复制容量 ${copyableBytes}</span><span>待人工核对 ${reviewBytes}</span><span>横向 ${landscape} · 纵向 ${portrait} · 方形 ${square}</span><span>重复文件组 ${duplicateGroups}</span><span>相似候选组 ${candidateGroups} · 直接匹配 ${candidatePairs} 对 · 最大组 ${largestGroup} 张</span></div><p class="note">“可新增”默认勾选；疑似相似与同名冲突需要手动勾选。当前阈值为 ${similarLimit}/176 位；距离小于或等于阈值会标为“疑似相似”，这个指纹分值只是人工复核提示，不代表相似概率。相似候选组按直接匹配关系的连通性汇总，组内不保证任意两张都直接相似。完全重复和无法解码的文件不能选。下载清单后，在命令行执行 apply，且必须使用相同的阈值。尺寸与平均亮度/颜色提示仅作参考。扫描不会改动现有相册。</p><div class="table-wrap"><table><thead><tr><th>选择</th><th>待导入照片</th><th>判断</th><th>参考照片</th><th>指纹差异</th><th>建议目标文件名</th><th>大小</th><th>图像信息</th></tr></thead><tbody>${rows}</tbody></table></div></main><script>
   #|   const scanId=${id};const picks=[...document.querySelectorAll('.pick')];const selected=document.getElementById('selected');function update(){selected.textContent='已选 '+picks.filter(x=>x.checked).length+' 张';}picks.forEach(x=>x.addEventListener('change',update));update();document.getElementById('select-new').addEventListener('click',()=>{picks.forEach(x=>x.checked=x.closest('tr').dataset.kind==='new');update();});document.getElementById('clear-selection').addEventListener('click',()=>{picks.forEach(x=>x.checked=false);update();});const filter=document.getElementById('filter');const search=document.getElementById('search');function filterRows(){const kind=filter.value;const query=search.value.trim().toLowerCase();document.querySelectorAll('tbody tr').forEach(row=>{row.hidden=(kind!=='all'&&row.dataset.kind!==kind)||!row.textContent.toLowerCase().includes(query);});}filter.addEventListener('change',filterRows);search.addEventListener('input',filterRows);document.getElementById('download').addEventListener('click',()=>{const data={scanId,selected:picks.filter(x=>x.checked).map(x=>x.dataset.path)};const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));link.download='approved.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);});
   #|   </script></body></html>`;
   #| }

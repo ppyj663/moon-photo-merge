@@ -7,6 +7,7 @@ test "exact duplicate beats filename conflict" {
       digest: "same",
       fingerprint: Some("0".repeat(64)),
       size: 10,
+      image_info: None,
     },
   ]
   let incoming : Array[@photo_merge.Photo] = [
@@ -16,6 +17,7 @@ test "exact duplicate beats filename conflict" {
       digest: "same",
       fingerprint: Some("0".repeat(64)),
       size: 10,
+      image_info: None,
     },
   ]
   let rows = @photo_merge.build_plan(existing, incoming)
@@ -32,6 +34,7 @@ test "same name with different bytes receives a safe name" {
       digest: "old",
       fingerprint: Some("0".repeat(64)),
       size: 10,
+      image_info: None,
     },
   ]
   let incoming : Array[@photo_merge.Photo] = [
@@ -41,6 +44,7 @@ test "same name with different bytes receives a safe name" {
       digest: "new",
       fingerprint: Some("1".repeat(64)),
       size: 20,
+      image_info: None,
     },
   ]
   let rows = @photo_merge.build_plan(existing, incoming)
@@ -57,6 +61,7 @@ test "visually close files need review" {
       digest: "one",
       fingerprint: Some("0".repeat(64)),
       size: 10,
+      image_info: None,
     },
   ]
   let incoming : Array[@photo_merge.Photo] = [
@@ -66,6 +71,7 @@ test "visually close files need review" {
       digest: "two",
       fingerprint: Some("0".repeat(63) + "1"),
       size: 20,
+      image_info: None,
     },
   ]
   let rows = @photo_merge.build_plan(existing, incoming)
@@ -83,6 +89,7 @@ test "similarity limit is inclusive and keeps its nearest distance" {
       digest: "one",
       fingerprint: Some("0".repeat(64)),
       size: 10,
+      image_info: None,
     },
   ]
   let incoming : Array[@photo_merge.Photo] = [
@@ -92,6 +99,7 @@ test "similarity limit is inclusive and keeps its nearest distance" {
       digest: "two",
       fingerprint: Some("0".repeat(63) + "1"),
       size: 20,
+      image_info: None,
     },
   ]
   let within_limit = @photo_merge.build_plan(
@@ -111,6 +119,35 @@ test "similarity limit is inclusive and keeps its nearest distance" {
 }
 
 ///|
+test "public planner clamps similarity thresholds to the supported range" {
+  let existing : Array[@photo_merge.Photo] = [
+    {
+      path: "library/a.jpg",
+      name: "a.jpg",
+      digest: "old",
+      fingerprint: Some("0".repeat(64)),
+      size: 10,
+      image_info: None,
+    },
+  ]
+  let incoming : Array[@photo_merge.Photo] = [
+    {
+      path: "incoming/b.jpg",
+      name: "b.jpg",
+      digest: "new",
+      fingerprint: Some("1".repeat(64)),
+      size: 10,
+      image_info: None,
+    },
+  ]
+  let negative = @photo_merge.build_plan(existing, incoming, similar_limit=-4)
+  assert_true(negative[0].kind == @photo_merge.Kind::New)
+  let too_large = @photo_merge.build_plan(existing, incoming, similar_limit=999)
+  assert_true(too_large[0].kind == @photo_merge.Kind::Similar)
+  assert_eq(too_large[0].similarity_distance, Some(64))
+}
+
+///|
 test "undecodable images are not planned for copying" {
   let incoming : Array[@photo_merge.Photo] = [
     {
@@ -119,6 +156,7 @@ test "undecodable images are not planned for copying" {
       digest: "x",
       fingerprint: None,
       size: 3,
+      image_info: None,
     },
   ]
   let rows = @photo_merge.build_plan([], incoming)
@@ -135,6 +173,7 @@ test "identical unreadable bytes never become an exact duplicate" {
       digest: "bad",
       fingerprint: None,
       size: 3,
+      image_info: None,
     },
   ]
   let incoming : Array[@photo_merge.Photo] = [
@@ -144,6 +183,7 @@ test "identical unreadable bytes never become an exact duplicate" {
       digest: "bad",
       fingerprint: None,
       size: 3,
+      image_info: None,
     },
   ]
   let rows = @photo_merge.build_plan(existing, incoming)
@@ -160,6 +200,7 @@ test "two different incoming files with the same basename get distinct targets" 
       digest: "first",
       fingerprint: Some("0".repeat(64)),
       size: 10,
+      image_info: None,
     },
     {
       path: "incoming/b/photo.jpg",
@@ -167,6 +208,7 @@ test "two different incoming files with the same basename get distinct targets" 
       digest: "second",
       fingerprint: Some("1".repeat(64)),
       size: 10,
+      image_info: None,
     },
   ]
   let rows = @photo_merge.build_plan([], incoming)
@@ -184,6 +226,7 @@ test "trailing-dot names avoid Windows-normalized target collisions" {
       digest: "old-photo",
       fingerprint: Some("0".repeat(64)),
       size: 10,
+      image_info: None,
     },
     {
       path: "old/photo-import-1",
@@ -191,6 +234,7 @@ test "trailing-dot names avoid Windows-normalized target collisions" {
       digest: "reserved",
       fingerprint: Some("1".repeat(64)),
       size: 10,
+      image_info: None,
     },
   ]
   let incoming : Array[@photo_merge.Photo] = [
@@ -200,6 +244,7 @@ test "trailing-dot names avoid Windows-normalized target collisions" {
       digest: "new-photo",
       fingerprint: Some("2".repeat(64)),
       size: 10,
+      image_info: None,
     },
   ]
   let rows = @photo_merge.build_plan(existing, incoming)
