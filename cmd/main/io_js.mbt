@@ -142,14 +142,24 @@ extern "js" fn write_report(
   #|   try {
   #|     const fs = require('node:fs');
   #|     const path = require('node:path');
+  #|     const crypto = require('node:crypto');
   #|     fs.mkdirSync(folder, {recursive: true});
-  #|     fs.writeFileSync(path.join(folder, 'review.html'), html, 'utf8');
-  #|     fs.writeFileSync(path.join(folder, 'review.csv'), csv, 'utf8');
-  #|     fs.writeFileSync(path.join(folder, 'review.json'), rowsJson, 'utf8');
-  #|     fs.writeFileSync(path.join(folder, 'inventory.json'), inventoryJson, 'utf8');
-  #|     fs.writeFileSync(path.join(folder, 'extensions.csv'), extensionsCsv, 'utf8');
-  #|     fs.writeFileSync(path.join(folder, 'similar-groups.json'), similarityJson, 'utf8');
-  #|     fs.writeFileSync(path.join(folder, 'similar-groups.csv'), similarityCsv, 'utf8');
+  #|     const write = (name, contents) => {
+  #|       const temporary = path.join(folder, '.photo-merge-report-' + crypto.randomUUID() + '.tmp');
+  #|       try {
+  #|         fs.writeFileSync(temporary, contents, {encoding: 'utf8', flag: 'wx'});
+  #|         fs.renameSync(temporary, path.join(folder, name));
+  #|       } finally {
+  #|         if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  #|       }
+  #|     };
+  #|     write('review.html', html);
+  #|     write('review.csv', csv);
+  #|     write('review.json', rowsJson);
+  #|     write('inventory.json', inventoryJson);
+  #|     write('extensions.csv', extensionsCsv);
+  #|     write('similar-groups.json', similarityJson);
+  #|     write('similar-groups.csv', similarityCsv);
   #|     return '';
   #|   } catch (error) { return String(error.message); }
   #| }

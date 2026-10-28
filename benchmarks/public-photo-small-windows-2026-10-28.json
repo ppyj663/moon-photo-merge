@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "measuredAtUtc": "2026-10-28T09:52:29.841Z",
+  "measurement": "end_to_end_moon_run_scan",
+  "warmupRuns": 1,
+  "measuredRuns": 5,
+  "environment": {
+    "platform": "win32",
+    "architecture": "x64",
+    "osRelease": "10.0.19045",
+    "nodeVersion": "v24.19.0",
+    "moonVersion": "moon 0.1.20261023 (3778465 2026-10-23)"
+  },
+  "dataset": {
+    "existingImages": {
+      "files": 3,
+      "bytes": "1397773"
+    },
+    "incomingImages": {
+      "files": 4,
+      "bytes": "878527"
+    },
+    "totalInputBytes": "2276300",
+    "scanMetrics": {
+      "incomingFiles": 4,
+      "incomingBytes": 878527,
+      "readableFiles": 4,
+      "unreadableFiles": 0,
+      "decodedPixels": 768580,
+      "duplicateFileGroups": 0,
+      "duplicateExtraFiles": 0,
+      "categories": {
+        "exact": 1,
+        "similar": 0,
+        "conflict": 1,
+        "new": 2,
+        "unreadable": 0
+      },
+      "similarityGroups": 1,
+      "directSimilarityPairs": 1
+    }
+  },
+  "timing": {
+    "samplesMs": [
+      758.735,
+      762.95,
+      787.364,
+      789.63,
+      794.136
+    ],
+    "minimumMs": 758.735,
+    "medianMs": 787.364,
+    "p95Ms": 794.136,
+    "maximumMs": 794.136
+  },
+  "throughput": {
+    "totalInputMiBPerSecond": 2.757
+  },
+  "privacy": "Aggregate counts and timings only; paths, names, hashes, and image contents are omitted.",
+  "note": "End-to-end CLI timing includes process startup, scan, decode, classification, grouping, and report export. Compare runs on the same machine and dataset."
+}

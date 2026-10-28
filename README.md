@@ -6,7 +6,14 @@
 
 ## 使用
 
-需要 [MoonBit 工具链](https://www.moonbitlang.com/download/) 和 Node.js。已在 Windows 的 MoonBit `0.1.20261023`、Node.js 24 及 GitHub Actions 的 Linux 环境运行。
+需要 [MoonBit 工具链](https://www.moonbitlang.com/download/)、Git 和 Node.js 24。已在 Windows 的 MoonBit `0.1.20261023`、Node.js 24 及 GitHub Actions 的 Linux 环境运行。先获取仓库并进入项目目录：
+
+```sh
+git clone https://github.com/ppyj663/moon-photo-merge.git
+cd moon-photo-merge
+```
+
+核心 MoonBit 模块已发布至 [Mooncakes](https://mooncakes.io/docs/ppyj663/photo_merge)，可在其他 MoonBit 项目中用 `moon add ppyj663/photo_merge` 引入。下面的命令行工具通过源码仓库运行。
 
 ```powershell
 moon update
@@ -54,7 +61,7 @@ moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户�
 | 可新增 | 未命中上述情况 | 选择 |
 | 图片无法解码 | 扩展名符合，但 JPEG/PNG 解码失败 | 不可选择 |
 
-视觉指纹是提示，不保证识别所有重编码、裁剪或旋转后的照片，也可能误报。JPEG 的 EXIF 朝向不参与归一化。亮度、颜色和分辨率提示是对采样图像的粗略统计，不等于图像质量判断。现有相册和备份的目录结构不会在目标中保留；目标文件名会被展开到相册根目录。首版不处理 HEIC、RAW、视频或云端照片。
+视觉指纹是提示，不保证识别所有重编码、裁剪或旋转后的照片，也可能误报。JPEG 的 EXIF 朝向不参与归一化。PNG 的解压数据上限为 128 MiB，超出上限、校验失败或无法解码的文件标为无法解码。亮度、颜色和分辨率提示是对采样图像的粗略统计，不等于图像质量判断。现有相册和备份的目录结构不会在目标中保留；目标文件名会被展开到相册根目录。首版不处理 HEIC、RAW、视频或云端照片。
 
 ## 示例与测试
 
@@ -73,7 +80,7 @@ node scripts/integration-test.mjs
 
 核心分类、命名冲突、分段索引的候选召回、连通分组、统计边界、筛选分页、CSV/JSON 转义、损坏图片及重复导入的规则见测试；文件复制和报告导出流程可用演示数据复核。
 
-集成测试还覆盖嵌套目录、大写扩展名、零字节图片、未支持格式、目录符号链接、路径穿越、过期清单、重复/不可复制清单项、目标文件碰撞，以及拒绝把基准汇总写进照片输入目录。扫描不会跟随符号链接目录；报告里可见的每个待导入路径都会在 `check` 和 `apply` 时重新校验。
+集成测试还覆盖空参数、空目录、阈值边界、嵌套目录、大写扩展名、零字节图片、PNG 分块及校验错误、较大 PNG、未支持格式、目录符号链接、路径穿越、过期清单、重复/不可复制清单项、目标文件碰撞、报告文件与原照片的硬链接，以及拒绝把基准汇总写进照片输入目录。扫描不会跟随符号链接目录；报告里可见的每个待导入路径都会在 `check` 和 `apply` 时重新校验。
 
 大赛验收项、仓库证据与本机复现命令见[验收自查](docs/验收自查.md)。
 
@@ -90,10 +97,12 @@ node scripts/benchmark.mjs "D:\Photos" "E:\PhoneBackup" --runs 5 --output "D:\Ph
 
 当前 Windows 10 x64 参考运行（Node.js 24.19.0、MoonBit 0.1.20261023，2026-10-28）使用仓库合成夹具，现有相册 1 张/198 B，待导入 5 张/1,212 B；5 次测量中位数 399.306 ms，p95 为 477.864 ms。五张待导入样例各覆盖完全重复、疑似相似、同名冲突、可新增和无法解码一种分类。完整汇总见 [基准 JSON](benchmarks/synthetic-fixtures-windows-2026-10-28.json)。该小样本主要验证基准流程与报告统计，进程启动开销占比高，不用于推断大相册性能。
 
+另用 scikit-image 的 6 张公开照片构造两组输入，测量真实 JPEG/PNG 解码与扫描：7 个文件时 5 次中位数为 787.364 ms；把同一组照片复制扩展到 70 个文件时中位数为 3,855.594 ms。扩展组只有 6 张不同原图，不能视为 70 张不同照片或真实用户相册。数据来源、生成方法、全部测量和局限见[公开照片基准](benchmarks/README.md)。
+
 ## 实现
 
-MoonBit 负责照片数据建模、图片解码后的视觉指纹、分类和导入决策。JPEG/PNG 解码使用 `gmlewis/image`，文件系统及 SHA-256 使用少量 Node.js 适配代码。执行阶段再次核对扫描摘要和来源文件哈希，通过同目录临时文件校验后创建目标硬链接，因此不会覆盖同名文件；若执行中途失败，已成功复制的文件会保留，重新扫描后可继续审核。
+MoonBit 负责照片数据建模、图片解码后的视觉指纹、分类和导入决策。JPEG/PNG 解码使用 `gmlewis/image`，文件系统及 SHA-256 使用 Node.js 适配代码。PNG 使用 Node.js zlib 校验并转换压缩数据后交给 MoonBit 解码，以避免依赖库在 JS 目标上发生深层递归；像素不因此改变。报告通过临时文件替换，避免跟随已有输出文件的硬链接或符号链接改写其目标。执行阶段再次核对扫描摘要和来源文件哈希，通过同目录临时文件校验后创建目标硬链接，因此不会覆盖同名文件；若执行中途失败，已成功复制的文件会保留，重新扫描后可继续审核。
 
-直接依赖为 [gmlewis/image](https://github.com/gmlewis/moonbit-image) 和 [gmlewis/io](https://github.com/gmlewis/moonbit-io)，两者在 Mooncakes 标注为 Apache-2.0。本项目使用了 Codex 辅助编写代码、测试和文档；分类规则、限制与复现方式见上文及仓库测试。
+直接依赖为 [gmlewis/image](https://github.com/gmlewis/moonbit-image) 和 [gmlewis/io](https://github.com/gmlewis/moonbit-io)；传递依赖与上游来源说明见[第三方来源](docs/第三方来源.md)。本项目使用了 Codex 辅助编写代码、测试和文档；分类规则、限制与复现方式见上文及仓库测试。
 
 许可证：Apache-2.0。

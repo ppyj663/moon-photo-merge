@@ -267,10 +267,15 @@ fn main {
     return
   }
   let invalid_count = args.length() != 4 && args.length() != 6
+  if invalid_count {
+    print_usage()
+    set_exit_code(2)
+    return
+  }
   let invalid_command = args[0] != "scan" &&
     args[0] != "check" &&
     args[0] != "apply"
-  if invalid_count || invalid_command {
+  if invalid_command {
     print_usage()
     set_exit_code(2)
     return

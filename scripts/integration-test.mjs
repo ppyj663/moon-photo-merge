@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -51,6 +52,83 @@ assert.match(help.stdout, /scan <现有相册>/);
 assert.match(help.stdout, /apply <现有相册>/);
 assert.match(help.stdout, /check <现有相册>/);
 assert.match(help.stdout, /--similarity-limit 0\.\.176/);
+const noArgs = run();
+assert.equal(noArgs.status, 2, noArgs.stderr + noArgs.stdout);
+assert.match(noArgs.stdout, /scan <现有相册>/);
+assert.doesNotMatch(noArgs.stderr, /Index out of bounds/);
+const linkedReport = path.join(temp, 'linked-report');
+fs.mkdirSync(linkedReport);
+const protectedPhoto = path.join(library, 'original.png');
+const protectedHash = hash(protectedPhoto);
+fs.linkSync(protectedPhoto, path.join(linkedReport, 'review.html'));
+const linkedReportScan = run('scan', library, incoming, linkedReport);
+assert.equal(linkedReportScan.status, 0, linkedReportScan.stderr + linkedReportScan.stdout);
+assert.equal(hash(protectedPhoto), protectedHash, 'report output cannot modify a hard-linked source photo');
+assert.match(fs.readFileSync(path.join(linkedReport, 'review.html'), 'utf8'), /<!doctype html>/i);
+const emptyLibrary = path.join(temp, 'empty-library');
+const emptyIncoming = path.join(temp, 'empty-incoming');
+const emptyReport = path.join(temp, 'empty-report');
+fs.mkdirSync(emptyLibrary);
+fs.mkdirSync(emptyIncoming);
+const emptyScan = run('scan', emptyLibrary, emptyIncoming, emptyReport, '--similarity-limit', '0');
+assert.equal(emptyScan.status, 0, emptyScan.stderr + emptyScan.stdout);
+assert.deepEqual(JSON.parse(fs.readFileSync(path.join(emptyReport, 'review.json'), 'utf8')), []);
+const negativeLimit = run('scan', emptyLibrary, emptyIncoming, emptyReport, '--similarity-limit', '-1');
+assert.equal(negativeLimit.status, 2, negativeLimit.stderr + negativeLimit.stdout);
+assert.match(negativeLimit.stdout, /相似阈值必须是/);
+// PNG with many literal deflate symbols exercises the JS decompressor's stack boundary.
+const pngChunk = (type, data) => {
+  const tag = Buffer.from(type);
+  const size = Buffer.alloc(4);
+  const checksum = Buffer.alloc(4);
+  size.writeUInt32BE(data.length);
+  checksum.writeUInt32BE(zlib.crc32(Buffer.concat([tag, data])));
+  return Buffer.concat([size, tag, data, checksum]);
+};
+const width = 256;
+const header = Buffer.alloc(13);
+header.writeUInt32BE(width, 0);
+header.writeUInt32BE(width, 4);
+header[8] = 8;
+header[9] = 2;
+const pixels = Buffer.alloc((width * 3 + 1) * width);
+let seed = 1;
+for (let row = 0; row < width; row += 1) {
+  for (let col = 1; col <= width * 3; col += 1) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    pixels[row * (width * 3 + 1) + col] = seed >>> 28;
+  }
+}
+const compressedPixels = zlib.deflateSync(pixels);
+const png = Buffer.concat([
+  Buffer.from('89504e470d0a1a0a', 'hex'), pngChunk('IHDR', header),
+  pngChunk('IDAT', compressedPixels), pngChunk('IEND', Buffer.alloc(0)),
+]);
+fs.writeFileSync(path.join(emptyIncoming, 'large.png'), png);
+const split = Math.floor(compressedPixels.length / 2);
+const splitPng = Buffer.concat([
+  Buffer.from('89504e470d0a1a0a', 'hex'), pngChunk('IHDR', header),
+  pngChunk('IDAT', compressedPixels.subarray(0, split)),
+  pngChunk('IDAT', compressedPixels.subarray(split)), pngChunk('IEND', Buffer.alloc(0)),
+]);
+fs.writeFileSync(path.join(emptyIncoming, 'split.png'), splitPng);
+const badCrc = Buffer.from(png);
+badCrc[badCrc.length - 1] ^= 1;
+fs.writeFileSync(path.join(emptyIncoming, 'bad-crc.png'), badCrc);
+const pngScan = run('scan', emptyLibrary, emptyIncoming, emptyReport);
+assert.equal(pngScan.status, 0, pngScan.stderr + pngScan.stdout);
+const pngRows = JSON.parse(fs.readFileSync(path.join(emptyReport, 'review.json'), 'utf8'));
+for (const name of ['large.png', 'split.png']) {
+  const row = pngRows.find(row => row.name === name);
+  assert.notEqual(row.kind, 'unreadable');
+  assert.equal(row.imageInfo.width, width);
+}
+assert.equal(pngRows.find(row => row.name === 'bad-crc.png').kind, 'unreadable');
+assert.deepEqual(
+  pngRows.find(row => row.name === 'large.png').imageInfo,
+  pngRows.find(row => row.name === 'split.png').imageInfo,
+  'splitting IDAT chunks must not change decoded pixel statistics',
+);
 const nestedIncoming = path.join(library, 'nested-input');
 fs.mkdirSync(nestedIncoming);
 const overlapping = run('scan', library, nestedIncoming, path.join(temp, 'overlap-report'));
