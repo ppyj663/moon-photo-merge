@@ -6,7 +6,7 @@
 
 ## 使用
 
-需要 [MoonBit 工具链](https://www.moonbitlang.com/download/) 和 Node.js。已在 Windows 的 MoonBit `0.1.20261020`、Node.js 24 及 GitHub Actions 的 Linux 环境运行。
+需要 [MoonBit 工具链](https://www.moonbitlang.com/download/) 和 Node.js。已在 Windows 的 MoonBit `0.1.20261023`、Node.js 24 及 GitHub Actions 的 Linux 环境运行。
 
 ```powershell
 moon update
@@ -16,8 +16,11 @@ moon run cmd/main -- scan "D:\Photos" "E:\PhoneBackup" "D:\PhotoReview"
 在浏览器打开输出的 `review.html`。页面会列出每张待导入图片及参考图片，并汇总各类数量；可以按文件名或路径搜索，也可按分类筛选。“只选可新增”可一次勾选明确的新照片，“清空选择”会取消所有勾选。“疑似相似”和“同名冲突”需手动勾选。下载 `approved.json` 后执行：
 
 ```powershell
+moon run cmd/main -- check "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json"
 moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json"
 ```
+
+`check` 会重新扫描并验证审核清单，列出将复制的文件名与容量；它是只读预检，不改动照片。确认预检输出后再运行 `apply`。
 
 每次扫描还会在报告文件夹输出 `review.csv`、`review.json`、`inventory.json`、`extensions.csv`、`similar-groups.json` 和 `similar-groups.csv`。这些文件用于查看或二次分析；只有网页下载的 `approved.json` 是 `apply` 接受的审核清单。`inventory.json` 汇总容量、方向、像素、文件扩展名和大小区间；CSV 字段会转义分隔符、引号和换行，并给公式样式的文本字段添加单引号以便在电子表格中按文本打开。需要原始字段值时使用 JSON 导出。
 
@@ -33,10 +36,11 @@ moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户�
 
 ```powershell
 moon run cmd/main -- scan "D:\Photos" "E:\PhoneBackup" "D:\PhotoReview" --similarity-limit 8
+moon run cmd/main -- check "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json" --similarity-limit 8
 moon run cmd/main -- apply "D:\Photos" "E:\PhoneBackup" "C:\Users\你的用户名\Downloads\approved.json" --similarity-limit 8
 ```
 
-`scan` 要求三个文件夹彼此独立。`apply` 会重新扫描；若相册或备份内的 JPEG/PNG 内容、文件名、数量改变，旧清单就会被拒绝，需重新审核。仅清单中勾选的文件会复制到现有相册**根目录**，同名时使用 `-import-1` 等新文件名。复制后校验 SHA-256，且目标名已存在时停止，不会覆盖。
+`scan` 要求三个文件夹彼此独立。`check` 和 `apply` 会重新扫描；若相册或备份内的 JPEG/PNG 内容、文件名、数量改变，旧清单就会被拒绝，需重新审核。`check` 只显示将复制的项目和容量。`apply` 只复制清单中勾选的文件到现有相册**根目录**，同名时使用 `-import-1` 等新文件名。复制后校验 SHA-256，且目标名已存在时停止，不会覆盖。
 
 命令帮助：`moon run cmd/main -- --help`。
 
@@ -68,6 +72,23 @@ node scripts/integration-test.mjs
 ```
 
 核心分类、命名冲突、分段索引的候选召回、连通分组、统计边界、筛选分页、CSV/JSON 转义、损坏图片及重复导入的规则见测试；文件复制和报告导出流程可用演示数据复核。
+
+集成测试还覆盖嵌套目录、大写扩展名、零字节图片、未支持格式、目录符号链接、路径穿越、过期清单、重复/不可复制清单项、目标文件碰撞，以及拒绝把基准汇总写进照片输入目录。扫描不会跟随符号链接目录；报告里可见的每个待导入路径都会在 `check` 和 `apply` 时重新校验。
+
+大赛验收项、仓库证据与本机复现命令见[验收自查](docs/验收自查.md)。
+
+### 本地照片目录基准
+
+可用自己的照片目录测量完整 `scan` 命令。脚本先暖机一次，再按指定次数测量；每次报告写入系统临时目录并在结束时清理。汇总仅包含环境、文件数、字节数、分类数量和耗时，不写入路径、文件名、哈希或照片内容。扫描本身是只读的。
+
+```powershell
+node scripts/benchmark.mjs "D:\Photos" "E:\PhoneBackup" --runs 5
+node scripts/benchmark.mjs "D:\Photos" "E:\PhoneBackup" --runs 5 --output "D:\PhotoReview\benchmark-summary.json"
+```
+
+基准报告中的 `medianMs` 是重复运行中位数，`p95Ms` 使用最近秩法；耗时包括 CLI 启动、扫描、解码、分类、分组和报告导出。建议固定设备、目录和 MoonBit/Node.js 版本后比较。`examples/fixtures` 是便于 CI 复现的合成夹具，性能结果不能当作真实相册的性能或识别准确率承诺；上面的命令可直接生成真实照片目录的本机汇总。
+
+当前 Windows 10 x64 参考运行（Node.js 24.19.0、MoonBit 0.1.20261023，2026-10-28）使用仓库合成夹具，现有相册 1 张/198 B，待导入 5 张/1,212 B；5 次测量中位数 399.306 ms，p95 为 477.864 ms。五张待导入样例各覆盖完全重复、疑似相似、同名冲突、可新增和无法解码一种分类。完整汇总见 [基准 JSON](benchmarks/synthetic-fixtures-windows-2026-10-28.json)。该小样本主要验证基准流程与报告统计，进程启动开销占比高，不用于推断大相册性能。
 
 ## 实现
 

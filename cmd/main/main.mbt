@@ -165,10 +165,55 @@ fn fail(message : String) -> Unit {
 }
 
 ///|
+/// Validate an approval against the current rows and return copyable rows in
+/// scan order. This is shared by the read-only check and the apply command.
+fn selected_rows(
+  rows : Array[@lib.ReviewRow],
+  selected : FixedArray[String],
+) -> (Array[@lib.ReviewRow], String) {
+  let chosen : Map[String, Bool] = Map([])
+  let row_by_path : Map[String, @lib.ReviewRow] = Map([])
+  for row in rows {
+    row_by_path.set(row.path, row)
+  }
+  for path in selected {
+    if chosen.get(path) is Some(_) {
+      return ([], "审核清单含有重复路径：" + path)
+    }
+    match row_by_path.get(path) {
+      Some(row) if row.destination is None =>
+        return ([], "审核清单选中了不可复制的文件：" + path)
+      Some(_) => ()
+      None => return ([], "审核清单路径不存在：" + path)
+    }
+    chosen.set(path, true)
+  }
+  let approved : Array[@lib.ReviewRow] = []
+  for row in rows {
+    if chosen.get(row.path) is Some(_) {
+      approved.push(row)
+    }
+  }
+  (approved, "")
+}
+
+///|
+fn selected_bytes(rows : Array[@lib.ReviewRow]) -> Int64 {
+  let mut bytes = 0L
+  for row in rows {
+    bytes = bytes + row.size.to_int64()
+  }
+  bytes
+}
+
+///|
 fn print_usage() -> Unit {
   println("用法：")
   println(
     "  moon run cmd/main -- scan <现有相册> <待导入备份> <报告文件夹> [--similarity-limit 0..176]",
+  )
+  println(
+    "  moon run cmd/main -- check <现有相册> <待导入备份> <approved.json> [--similarity-limit 0..176]",
   )
   println(
     "  moon run cmd/main -- apply <现有相册> <待导入备份> <approved.json> [--similarity-limit 0..176]",
@@ -222,7 +267,9 @@ fn main {
     return
   }
   let invalid_count = args.length() != 4 && args.length() != 6
-  let invalid_command = args[0] != "scan" && args[0] != "apply"
+  let invalid_command = args[0] != "scan" &&
+    args[0] != "check" &&
+    args[0] != "apply"
   if invalid_count || invalid_command {
     print_usage()
     set_exit_code(2)
@@ -290,47 +337,48 @@ fn main {
     return
   }
   let selected = approved_paths(third)
-  let chosen : Map[String, Bool] = Map([])
-  for path in selected {
-    if chosen.get(path) is Some(_) {
-      fail("审核清单含有重复路径：" + path)
-      return
+  let (approved, selection_error) = selected_rows(rows, selected)
+  if selection_error != "" {
+    fail(selection_error)
+    return
+  }
+  if args[0] == "check" {
+    println(
+      "审核清单通过：将复制 " +
+      approved.length().to_string() +
+      " 张，合计 " +
+      @lib.format_bytes(selected_bytes(approved)),
+    )
+    for row in approved {
+      println(
+        "  " +
+        row.path +
+        " → " +
+        optional_text(row.destination) +
+        "（" +
+        @lib.format_bytes(row.size.to_int64()) +
+        "）",
+      )
     }
-    let mut found = false
-    for row in rows {
-      if row.path == path {
-        found = true
-        if row.destination is None {
-          fail("审核清单选中了不可复制的文件：" + path)
-          return
-        }
-        break
-      }
-    }
-    if !found {
-      fail("审核清单路径不存在：" + path)
-      return
-    }
-    chosen.set(path, true)
+    println("只读预检完成；未复制、删除或覆盖任何文件")
+    return
   }
   let mut copied = 0
-  for row in rows {
-    if chosen.get(row.path) is Some(_) {
-      let destination = optional_text(row.destination)
-      let error = safe_copy(
-        incoming,
-        incoming_relative(row.path),
-        library,
-        destination,
-        row.digest,
-      )
-      if error != "" {
-        fail(row.path + " 复制失败：" + error)
-        return
-      }
-      println("已复制：" + row.path + " → " + destination)
-      copied = copied + 1
+  for row in approved {
+    let destination = optional_text(row.destination)
+    let error = safe_copy(
+      incoming,
+      incoming_relative(row.path),
+      library,
+      destination,
+      row.digest,
+    )
+    if error != "" {
+      fail(row.path + " 复制失败：" + error)
+      return
     }
+    println("已复制：" + row.path + " → " + destination)
+    copied = copied + 1
   }
   println(
     "完成：复制 " +

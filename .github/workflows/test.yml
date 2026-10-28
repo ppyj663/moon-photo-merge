@@ -23,8 +23,11 @@ jobs:
         run: moon update
       - name: Check, build and test
         run: |
+          moon info
+          moon fmt
           moon check --target js
           moon build --target js
           moon test --target js
           node scripts/integration-test.mjs
           node scripts/demo.mjs
+          node scripts/benchmark.mjs examples/fixtures/library examples/fixtures/incoming --runs 2

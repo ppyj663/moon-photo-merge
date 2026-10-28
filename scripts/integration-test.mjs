@@ -15,6 +15,16 @@ const report = path.join(temp, 'report');
 fs.cpSync(path.join(fixture, 'library'), library, { recursive: true });
 fs.cpSync(path.join(fixture, 'incoming'), incoming, { recursive: true });
 fs.mkdirSync(report);
+const nested = path.join(incoming, 'nested');
+fs.mkdirSync(nested);
+fs.renameSync(path.join(incoming, 'new.jpg'), path.join(nested, 'new.jpg'));
+fs.copyFileSync(path.join(incoming, 'duplicate.png'), path.join(nested, 'UPPERCASE.PNG'));
+fs.writeFileSync(path.join(nested, 'empty.png'), Buffer.alloc(0));
+fs.writeFileSync(path.join(nested, 'unsupported.heic'), Buffer.from('not a supported image'));
+const linkedTarget = path.join(temp, 'linked-photos');
+fs.mkdirSync(linkedTarget);
+fs.copyFileSync(path.join(fixture, 'incoming', 'new.jpg'), path.join(linkedTarget, 'outside.jpg'));
+fs.symlinkSync(linkedTarget, path.join(incoming, 'linked-directory'), process.platform === 'win32' ? 'junction' : 'dir');
 const escapedName = "相册, O'Neil.png";
 fs.copyFileSync(path.join(incoming, 'similar.png'), path.join(incoming, escapedName));
 const formulaName = '=SUMMARY.png';
@@ -24,6 +34,13 @@ const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).d
 const run = (...args) => spawnSync(process.platform === 'win32' ? 'moon.exe' : 'moon', ['run', 'cmd/main', '--', ...args], {
   cwd: project, encoding: 'utf8',
 });
+const unsafeBenchmarkOutput = path.join(library, 'benchmark-summary.json');
+const rejectedBenchmarkOutput = spawnSync(process.execPath, [
+  path.join(project, 'scripts', 'benchmark.mjs'), library, incoming, '--runs', '1', '--output', unsafeBenchmarkOutput,
+], { cwd: project, encoding: 'utf8' });
+assert.equal(rejectedBenchmarkOutput.status, 2, rejectedBenchmarkOutput.stderr);
+assert.match(rejectedBenchmarkOutput.stderr, /outside both input directories/);
+assert.ok(!fs.existsSync(unsafeBenchmarkOutput), 'benchmark cannot write its summary into a source folder');
 const filesystemRoot = path.parse(process.cwd()).root;
 const rootOverlap = run('scan', filesystemRoot, temp, filesystemRoot);
 assert.equal(rootOverlap.status, 2, rootOverlap.stderr + rootOverlap.stdout);
@@ -32,6 +49,7 @@ const help = run('--help');
 assert.equal(help.status, 0, help.stderr + help.stdout);
 assert.match(help.stdout, /scan <现有相册>/);
 assert.match(help.stdout, /apply <现有相册>/);
+assert.match(help.stdout, /check <现有相册>/);
 assert.match(help.stdout, /--similarity-limit 0\.\.176/);
 const nestedIncoming = path.join(library, 'nested-input');
 fs.mkdirSync(nestedIncoming);
@@ -70,6 +88,11 @@ for (const [index, kind] of ['exact', 'similar', 'conflict', 'new', 'unreadable'
 }
 const exportedRows = JSON.parse(fs.readFileSync(path.join(report, 'review.json'), 'utf8'));
 assert.equal(exportedRows.length, summary.slice(1).reduce((total, count) => total + Number(count), 0), 'JSON export includes every review row');
+assert.ok(exportedRows.some(row => row.path === 'incoming/nested/new.jpg' && row.kind === 'new'), 'nested JPEG files are scanned');
+assert.ok(exportedRows.some(row => row.path === 'incoming/nested/UPPERCASE.PNG'), 'uppercase extensions are supported');
+assert.ok(exportedRows.some(row => row.path === 'incoming/nested/empty.png' && row.kind === 'unreadable'), 'zero-byte images are reported as unreadable');
+assert.ok(!exportedRows.some(row => row.path.includes('linked-directory')), 'directory symlinks are not followed');
+assert.ok(!exportedRows.some(row => row.name.endsWith('.heic')), 'unsupported formats are excluded');
 const escapedRow = exportedRows.find(row => row.name === escapedName);
 assert.ok(escapedRow, 'JSON export preserves Unicode filenames');
 assert.equal(typeof escapedRow.imageInfo.width, 'number', 'decoded rows include image dimensions');
@@ -92,6 +115,7 @@ assert.match(malformed.stdout, /不是有效 JSON/);
 for (const invalid of [
   { scanId: id[1] },
   { scanId: id[1], selected: ['incoming/new.jpg', 7] },
+  { scanId: id[1], selected: ['incoming/nested/new.jpg', 'incoming/nested/new.jpg'] },
 ]) {
   fs.writeFileSync(approved, JSON.stringify(invalid));
   const rejected = run('apply', library, incoming, approved);
@@ -100,26 +124,48 @@ for (const invalid of [
 }
 fs.writeFileSync(approved, JSON.stringify({
   scanId: id[1],
-  selected: ['incoming/new.jpg', 'incoming/../library/original.png'],
+  selected: ['incoming/nested/new.jpg', 'incoming/../library/original.png'],
 }));
 const traversal = run('apply', library, incoming, approved);
 assert.equal(traversal.status, 2, traversal.stderr + traversal.stdout);
 assert.match(traversal.stdout, /审核清单路径不存在/);
 assert.deepEqual(fs.readdirSync(library), ['original.png']);
 fs.writeFileSync(approved, JSON.stringify({
-  scanId: id[1], selected: ['incoming/new.jpg', 'incoming/duplicate.png'],
+  scanId: id[1], selected: ['incoming/nested/new.jpg', 'incoming/duplicate.png'],
 }));
 const rejected = run('apply', library, incoming, approved);
 assert.equal(rejected.status, 2, rejected.stderr + rejected.stdout);
 assert.deepEqual(fs.readdirSync(library), ['original.png']);
 
+const nestedNew = path.join(nested, 'new.jpg');
+const originalIncomingBytes = fs.readFileSync(nestedNew);
+fs.writeFileSync(nestedNew, Buffer.concat([originalIncomingBytes, Buffer.from([0])]));
+fs.writeFileSync(approved, JSON.stringify({ scanId: id[1], selected: ['incoming/nested/new.jpg'] }));
+const staleCheck = run('check', library, incoming, approved);
+assert.equal(staleCheck.status, 2, staleCheck.stderr + staleCheck.stdout);
+assert.match(staleCheck.stdout, /审核清单与当前相册或备份不一致/);
+assert.deepEqual(fs.readdirSync(library), ['original.png'], 'stale read-only check does not modify the library');
+fs.writeFileSync(nestedNew, originalIncomingBytes);
+
+fs.writeFileSync(approved, JSON.stringify({ scanId: id[1], selected: ['incoming/nested/empty.png'] }));
+const unreadableSelection = run('apply', library, incoming, approved);
+assert.equal(unreadableSelection.status, 2, unreadableSelection.stderr + unreadableSelection.stdout);
+assert.match(unreadableSelection.stdout, /不可复制/);
+assert.deepEqual(fs.readdirSync(library), ['original.png']);
+
 fs.writeFileSync(approved, JSON.stringify({
-  scanId: id[1], selected: ['incoming/new.jpg', 'incoming/original.png', `incoming/${formulaName}`],
+  scanId: id[1], selected: ['incoming/nested/new.jpg', 'incoming/original.png', `incoming/${formulaName}`],
 }));
+const checked = run('check', library, incoming, approved);
+assert.equal(checked.status, 0, checked.stderr + checked.stdout);
+assert.match(checked.stdout, /审核清单通过：将复制 3 张/);
+assert.match(checked.stdout, /只读预检完成；未复制、删除或覆盖任何文件/);
+assert.match(checked.stdout, /new\.jpg/);
+assert.deepEqual(fs.readdirSync(library), ['original.png'], 'read-only check does not write to the library');
 const applied = run('apply', library, incoming, approved);
 assert.equal(applied.status, 0, applied.stderr + applied.stdout);
 assert.equal(hash(path.join(library, 'original.png')), originalHash);
-assert.equal(hash(path.join(library, 'new.jpg')), hash(path.join(incoming, 'new.jpg')));
+assert.equal(hash(path.join(library, 'new.jpg')), hash(path.join(nested, 'new.jpg')));
 assert.equal(hash(path.join(library, 'original-import-1.png')), hash(path.join(incoming, 'original.png')));
 assert.equal(hash(path.join(library, formulaName)), hash(path.join(incoming, formulaName)));
 const stale = run('apply', library, incoming, approved);
